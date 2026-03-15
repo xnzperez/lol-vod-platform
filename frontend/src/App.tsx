@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { VODWebSocketClient } from "./core/websocket";
 import type { GameStats } from "./core/decoder";
 import { VideoPlayer } from "./features/player/VideoPlayer";
+import { PlayerPanel } from "./features/player/PlayerPanel";
 
 function App() {
   const [stats, setStats] = useState<GameStats | null>(null);
@@ -70,6 +71,7 @@ function App() {
             </span>
           </div>
         </div>
+        <PlayerPanel players={stats?.players || []} />
       </div>
     </div>
   );
