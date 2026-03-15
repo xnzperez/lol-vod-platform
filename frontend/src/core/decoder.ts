@@ -1,40 +1,62 @@
-// 1. Interfaz de Entrada (Lo que llega del Servidor)
-// Esto mapea exactamente la ofuscación de la Fase 1.
-export interface RawStatsPayload {
-  t: number; // Timestamp
-  g_d: number; // Gold Difference
-  d_t: number; // Dragon Timer
-  b_t: number; // Baron Timer
+// 1. Interfaces Crudas (Lo que llega ofuscado del backend)
+export interface RawPlayerData {
+  id: string;
+  n: string; // Nombre
+  c: string; // Campeón
+  kda: string;
+  i: string[]; // Ítems
 }
 
-// 2. Interfaz de Dominio (Lo que usará nuestro Frontend)
-// Nombres limpios, escalables y autodescriptivos para las buenas prácticas.
+export interface RawStatsPayload {
+  t: number;
+  g_d: number;
+  d_t: number;
+  b_t: number;
+  p_d: RawPlayerData[]; // Arreglo de jugadores crudo
+}
+
+// 2. Interfaces de Dominio (Lo que usa React)
+export interface PlayerData {
+  id: string;
+  name: string;
+  champion: string;
+  kda: string;
+  items: string[];
+}
+
 export interface GameStats {
   timestamp: number;
   goldDifference: number;
   dragonTimer: number;
   baronTimer: number;
+  players: PlayerData[];
 }
 
-/**
- * Toma el string crudo del WebSocket, lo parsea y lo traduce al modelo de dominio.
- * Si alguien en la Fase 2 intenta entender el código ofuscado, tendrá que buscar
- * esta función exacta en los Source Maps del navegador.
- */
+// 3. Función Traductora
 export function decodePayload(rawMessage: string): GameStats | null {
   try {
-    // Parseamos el string de texto a nuestro objeto crudo tipado
     const parsed = JSON.parse(rawMessage) as RawStatsPayload;
 
-    // Mapeamos y retornamos el objeto limpio
+    // Mapeamos el arreglo de jugadores para limpiar sus claves
+    const cleanPlayers = parsed.p_d
+      ? parsed.p_d.map((player) => ({
+          id: player.id,
+          name: player.n,
+          champion: player.c,
+          kda: player.kda,
+          items: player.i,
+        }))
+      : [];
+
     return {
       timestamp: parsed.t,
       goldDifference: parsed.g_d,
       dragonTimer: parsed.d_t,
       baronTimer: parsed.b_t,
+      players: cleanPlayers,
     };
   } catch (error) {
-    console.error("[DECODER] Error al parsear el payload del servidor:", error);
+    console.error("[DECODER] Error al parsear el payload:", error);
     return null;
   }
 }

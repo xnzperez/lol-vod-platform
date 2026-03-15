@@ -1,6 +1,6 @@
 import { decodePayload, type GameStats } from "./decoder"; // Importamos la librería de físicas/toasts Sileo
 // (Nota: asumo la sintaxis estándar de instanciación, ajusta si la doc de Sileo indica otra)
-import * as sileo from "sileo";
+import { sileo } from "sileo";
 // Definimos el tipo de la función que reaccionará a los mensajes
 type OnStatsUpdateCallback = (stats: GameStats) => void;
 
@@ -25,7 +25,7 @@ export class VODWebSocketClient {
     this.ws.onopen = () => {
       console.log("[WS] Conexión establecida con éxito.");
       // Usamos Sileo para notificar al usuario final de forma visual
-      toast({ message: "Sincronización en vivo activada", type: "success" });
+      sileo.success({ title: "Sincronización en vivo activada" });
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -43,9 +43,8 @@ export class VODWebSocketClient {
 
     this.ws.onclose = () => {
       console.warn("[WS] Conexión perdida. Intentando reconectar...");
-      toast({
-        message: "Se perdió la conexión con el servidor",
-        type: "error",
+      sileo.error({
+        title: "Se perdió la conexión con el servidor",
       });
 
       // Buena Práctica: Intentar reconectar automáticamente después de 3 segundos
@@ -55,5 +54,13 @@ export class VODWebSocketClient {
     this.ws.onerror = (error: Event) => {
       console.error("[WS] Error de red:", error);
     };
+  }
+
+  // Método para enviar el segundo actual del video al backend en Go
+  public sendMessage(payload: object): void {
+    // Verificamos que el túnel TCP esté abierto antes de enviar datos
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(payload));
+    }
   }
 }
