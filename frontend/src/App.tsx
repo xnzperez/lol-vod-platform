@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { VODWebSocketClient } from "./core/websocket";
 // Importamos GameStats como un tipo explícito
 import type { GameStats } from "./core/decoder";
+import { VideoPlayer } from "./features/player/VideoPlayer";
 
 function App() {
   // Estado inicial de las estadísticas
@@ -33,9 +34,9 @@ function App() {
     <div className="w-full h-screen flex justify-center items-center">
       {/* Contenedor VOD (1280x720) con posición relativa para el Overlay */}
       <div className="relative w-[1280px] h-[720px] bg-black border border-[#30363d] shadow-2xl shadow-black/80 overflow-hidden">
-        {/* Capa 1: Reproductor de Video (Placeholder) */}
-        <div className="absolute inset-0 flex justify-center items-center text-gray-600 text-2xl font-bold">
-          [ Área reservada para el reproductor HLS ]
+        {/* Capa 1: Reproductor de Video HLS */}
+        <div className="absolute inset-0 z-10">
+          <VideoPlayer url="http://localhost:8080/vod/partida-t1-geng.m3u8" />
         </div>
 
         {/* Capa 2: Overlay de Estadísticas (z-index 50) pointer-events-none deja hacer clic a través de él */}
