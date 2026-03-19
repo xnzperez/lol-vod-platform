@@ -1,10 +1,10 @@
-// 1. Interfaces Crudas (Lo que llega ofuscado del backend)
+// 1. Interfaces Crudas
 export interface RawPlayerData {
   id: string;
-  n: string; // Nombre
-  c: string; // Campeón
+  n: string;
+  c: string;
   kda: string;
-  i: string[]; // Ítems
+  i: string[];
 }
 
 export interface RawStatsPayload {
@@ -12,10 +12,11 @@ export interface RawStatsPayload {
   g_d: number;
   d_t: number;
   b_t: number;
-  p_d: RawPlayerData[]; // Arreglo de jugadores crudo
+  w_p: number; // NUEVO: Probabilidad de victoria que llega de Go
+  p_d: RawPlayerData[];
 }
 
-// 2. Interfaces de Dominio (Lo que usa React)
+// 2. Interfaces de Dominio
 export interface PlayerData {
   id: string;
   name: string;
@@ -29,6 +30,7 @@ export interface GameStats {
   goldDifference: number;
   dragonTimer: number;
   baronTimer: number;
+  winProbability: number; // NUEVO: Para usar en React
   players: PlayerData[];
 }
 
@@ -37,7 +39,6 @@ export function decodePayload(rawMessage: string): GameStats | null {
   try {
     const parsed = JSON.parse(rawMessage) as RawStatsPayload;
 
-    // Mapeamos el arreglo de jugadores para limpiar sus claves
     const cleanPlayers = parsed.p_d
       ? parsed.p_d.map((player) => ({
           id: player.id,
@@ -53,6 +54,7 @@ export function decodePayload(rawMessage: string): GameStats | null {
       goldDifference: parsed.g_d,
       dragonTimer: parsed.d_t,
       baronTimer: parsed.b_t,
+      winProbability: parsed.w_p, // Inyectamos el nuevo dato
       players: cleanPlayers,
     };
   } catch (error) {
