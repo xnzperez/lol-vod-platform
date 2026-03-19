@@ -77,12 +77,18 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Evaluamos si en ese segundo exacto hay datos guardados en nuestro timeline.json
 		if stats, exists := timeline[timeKey]; exists {
-			// Si existen, disparamos los datos ofuscados de vuelta a React
+
+			// --- LÓGICA DE NEGOCIO (Data Science) ---
+			// Calculamos dinámicamente la probabilidad en tiempo real
+			stats.WinProb = CalculateWinProbability(stats.GoldDiff)
+
+			// Si existen, disparamos los datos ofuscados y calculados de vuelta a React
 			if err := conn.WriteJSON(stats); err != nil {
 				log.Printf("[STATS] Error enviando paquete de datos: %v", err)
 				break
 			}
-			log.Printf("[STATS] Sincronización exitosa -> Segundo %s despachado.", timeKey)
+			// Imprimimos en consola para auditar nuestro algoritmo
+			log.Printf("[STATS] Segundo %s despachado | WinProb Azul: %.2f%%", timeKey, stats.WinProb)
 		}
 	}
 }

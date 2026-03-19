@@ -15,7 +15,8 @@ type GameStats struct {
 	GoldDiff    int          `json:"g_d"`
 	DragonTimer int          `json:"d_t"`
 	BaronTimer  int          `json:"b_t"`
-	Players     []PlayerData `json:"p_d"` // Inyectamos el arreglo de jugadores
+	WinProb     float64      `json:"w_p"` // NUEVO: Probabilidad de victoria (Ej: 81.5)
+	Players     []PlayerData `json:"p_d"`
 }
 
 // ClientMessage es la estructura que ESPERAMOS recibir desde React.
