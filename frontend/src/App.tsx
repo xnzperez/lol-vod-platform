@@ -1,70 +1,24 @@
-import { useEffect, useState, useRef } from "react";
-import { VODWebSocketClient } from "./core/websocket";
-import type { GameStats, PlayerData } from "./core/decoder";
+import { useState } from "react";
 import { VideoPlayer } from "./features/player/VideoPlayer";
 import { PlayerPanel } from "./features/player/PlayerPanel";
 import { WinProbabilityBar } from "./features/player/WinProbabilityBar";
-import { sileo, Toaster } from "sileo";
+import { DragonTimer } from "./features/player/DragonTimer";
+import { Toaster } from "sileo";
+
+// 1. Importamos nuestro nuevo Custom Hook
+import { useGameStats } from "./features/player/useGameStats";
 
 function App() {
-  const [stats, setStats] = useState<GameStats | null>(null);
+  // 2. Extraemos toda la lógica pesada en una sola línea elegante
+  const { stats, updateServerTime } = useGameStats(
+    "ws://localhost:8080/ws/stats",
+  );
 
-  // Referencias para evitar re-renders innecesarios
-  const wsClientRef = useRef<VODWebSocketClient | null>(null);
-  const prevPlayersRef = useRef<PlayerData[]>([]);
+  // Estado global de reproducción
+  const [isPlaying, setIsPlaying] = useState(false);
 
-  // Efecto 1: Conexión WebSocket al iniciar
-  useEffect(() => {
-    const wsUrl = "ws://localhost:8080/ws/stats";
-    wsClientRef.current = new VODWebSocketClient(wsUrl);
-
-    wsClientRef.current.subscribe((newStats) => {
-      setStats(newStats);
-    });
-
-    wsClientRef.current.connect();
-
-    return () => {
-      // Cleanup opcional
-    };
-  }, []);
-
-  // Efecto 2: Motor de Notificaciones Reactivas (Observador de Inventario)
-  useEffect(() => {
-    if (!stats?.players) return;
-
-    stats.players.forEach((currentPlayer) => {
-      const prevPlayer = prevPlayersRef.current.find(
-        (p) => p.id === currentPlayer.id,
-      );
-
-      if (prevPlayer) {
-        if (currentPlayer.items.length > prevPlayer.items.length) {
-          const newItem = currentPlayer.items[currentPlayer.items.length - 1];
-
-          sileo.info({
-            title: "Actualización de Inventario",
-            description: `¡${currentPlayer.name} ha comprado ${newItem}!`,
-            fill: "#0d1117",
-            styles: {
-              title: "text-gray-300!",
-              description: "text-amber-400! font-bold!",
-            },
-          });
-
-          console.log(`[ALERTA] ${currentPlayer.name} compró ${newItem}`);
-        }
-      }
-    });
-
-    prevPlayersRef.current = stats.players;
-  }, [stats]);
-
-  // Sincronización de tiempo del video con el servidor
   const handleVideoTimeUpdate = (currentTime: number) => {
-    if (wsClientRef.current) {
-      wsClientRef.current.sendMessage({ time: currentTime });
-    }
+    updateServerTime(currentTime);
   };
 
   const formatGold = (gold: number) => (Math.abs(gold) / 1000).toFixed(1) + "k";
@@ -77,24 +31,19 @@ function App() {
           <VideoPlayer
             url="http://localhost:8080/vod/partida-t1-geng.m3u8"
             onTimeUpdate={handleVideoTimeUpdate}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
           />
         </div>
 
         {/* --- CAPA 2: OVERLAY DE ESTADÍSTICAS GLOBALES --- */}
-        {/* pointer-events-none permite que el mouse pase a través para pausar/reproducir el video */}
         <div className="absolute inset-0 z-40 pointer-events-none">
-          {/* Superior Izquierda: Cajas de Oro y Dragón */}
           <div className="absolute top-5 left-5 flex flex-col gap-3">
+            {/* Caja de Oro */}
             <div className="bg-[#0d1117]/85 border border-[#30363d]/80 px-5 py-3 rounded backdrop-blur-sm text-lg font-semibold uppercase tracking-wider text-gray-300">
               Dif. de Oro:
               <span
-                className={`ml-3 text-2xl font-extrabold ${
-                  stats?.goldDifference && stats.goldDifference > 0
-                    ? "text-blue-500"
-                    : stats?.goldDifference && stats.goldDifference < 0
-                      ? "text-red-500"
-                      : "text-gray-300"
-                }`}
+                className={`ml-3 text-2xl font-extrabold ${stats?.goldDifference && stats.goldDifference > 0 ? "text-blue-500" : stats?.goldDifference && stats.goldDifference < 0 ? "text-red-500" : "text-gray-300"}`}
               >
                 {stats
                   ? `${stats.goldDifference > 0 ? "+" : ""}${formatGold(stats.goldDifference)}`
@@ -102,16 +51,13 @@ function App() {
               </span>
             </div>
 
-            <div className="bg-[#0d1117]/85 border border-[#30363d]/80 px-5 py-3 rounded backdrop-blur-sm text-lg font-semibold uppercase tracking-wider text-gray-300">
-              Dragón en:
-              <span className="ml-3 text-2xl font-extrabold text-amber-500">
-                {stats ? `${stats.dragonTimer}s` : "--"}
-              </span>
-            </div>
+            {/* 3. NUEVO: Componente de Interpolación del Dragón */}
+            <DragonTimer
+              serverTimer={stats?.dragonTimer}
+              isPlaying={isPlaying}
+            />
           </div>
 
-          {/* Superior Centro: Motor Analítico de Probabilidad de Victoria */}
-          {/* -translate-x-1/2 lo centra perfectamente sin importar su ancho */}
           <div className="absolute top-5 left-1/2 -translate-x-1/2">
             {stats && stats.winProbability !== undefined && (
               <WinProbabilityBar blueWinProb={stats.winProbability} />

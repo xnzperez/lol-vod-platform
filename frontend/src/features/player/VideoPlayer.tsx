@@ -5,11 +5,18 @@ import Hls from "hls.js";
 // Esto permite que el componente padre (App.tsx) sepa en qué segundo va el video.
 interface VideoPlayerProps {
   url: string;
-  onTimeUpdate: (currentTime: number) => void;
+  onTimeUpdate: (time: number) => void;
+  onPlay?: () => void;
+  onPause?: () => void;
 }
 
 // 2. Modificación: Desestructuramos onTimeUpdate para poder usarlo dentro del componente
-export const VideoPlayer = ({ url, onTimeUpdate }: VideoPlayerProps) => {
+export const VideoPlayer = ({
+  url,
+  onTimeUpdate,
+  onPlay,
+  onPause,
+}: VideoPlayerProps) => {
   // useRef nos permite acceder directamente al elemento <video> real del DOM
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -72,6 +79,8 @@ export const VideoPlayer = ({ url, onTimeUpdate }: VideoPlayerProps) => {
       controls
       muted // Empezar muteado ayuda a evitar bloqueos de Autoplay en navegadores modernos
       onTimeUpdate={handleTimeUpdate} // 4. Enlazamos nuestra función al evento nativo de HTML5
+      onPlay={onPlay} // Avisa que empezó a reproducir
+      onPause={onPause} // Avisa que se pausó
     />
   );
 };
