@@ -8,6 +8,9 @@ export const useGameStats = (wsUrl: string) => {
   const wsClientRef = useRef<VODWebSocketClient | null>(null);
   const prevPlayersRef = useRef<PlayerData[]>([]);
 
+  // NUEVO: Control para no saturar al servidor con peticiones redundantes
+  const lastSentTimeRef = useRef<number>(-1);
+
   // 1. Efecto de Conexión WebSocket
   useEffect(() => {
     wsClientRef.current = new VODWebSocketClient(wsUrl);
@@ -54,10 +57,18 @@ export const useGameStats = (wsUrl: string) => {
     prevPlayersRef.current = stats.players;
   }, [stats]);
 
-  // 3. Función para enviar el tiempo actual al backend
+  // 3. Función para enviar el tiempo actual al backend (Refactorizada)
   const updateServerTime = (currentTime: number) => {
-    if (wsClientRef.current) {
-      wsClientRef.current.sendMessage({ time: currentTime });
+    if (!wsClientRef.current) return;
+
+    // Convertimos el float del video (ej. 45.123) a un entero estricto (45)
+    const currentSecond = Math.floor(currentTime);
+
+    // Solo enviamos el payload a Go si el segundo ha cambiado.
+    // Esto reduce el tráfico de red de ~60 peticiones/seg a solo 1 petición/seg.
+    if (currentSecond !== lastSentTimeRef.current) {
+      wsClientRef.current.sendMessage({ time: currentSecond });
+      lastSentTimeRef.current = currentSecond;
     }
   };
 
