@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +13,11 @@ import (
 )
 
 func main() {
+	// 1. INICIALIZAR LA CACHÉ EN RAM (¡Vital para la arquitectura concurrente!)
+	if err := stats.InitTimeline(); err != nil {
+		log.Fatalf("Error crítico al iniciar el Timeline en RAM: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -25,14 +31,35 @@ func main() {
 	}
 	dataPath := filepath.Join(cwd, "data")
 
-	// Registramos la ruta VOD
+	// Registramos la ruta VOD y WebSockets
 	vodHandler := vod.NewHandler(dataPath)
 	mux.Handle("/vod/", http.StripPrefix("/vod/", vodHandler))
 	mux.HandleFunc("/ws/stats", stats.WebSocketHandler)
 
+	// 2. NUEVA RUTA: Endpoint para exportar analíticas (Estándar net/http)
+	mux.HandleFunc("/api/export", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		err := stats.ExportAnalytics()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":    "Fallo al generar el reporte CSV",
+				"detalles": err.Error(),
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "success",
+			"message": "Reporte CSV generado correctamente en la carpeta /data",
+		})
+	})
+
 	srv := &http.Server{
 		Addr: ":8080",
-		// AQUÍ ESTÁ LA MAGIA: Envolvemos todo con nuestro Logger Global
+		// Envolvemos todo con nuestro Logger Global y CORS
 		Handler:      globalLogger(enableCORS(mux)),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,

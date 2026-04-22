@@ -34,9 +34,9 @@ export const DragonTimer = ({ serverTimer, isPlaying }: DragonTimerProps) => {
   }, [isPlaying]); // Este efecto reacciona mágicamente cada vez que le das Play o Pause
 
   return (
-    <div className="bg-[#0d1117]/85 border border-[#30363d]/80 px-5 py-3 rounded backdrop-blur-sm text-lg font-semibold uppercase tracking-wider text-gray-300">
-      Dragón en:
-      <span className="ml-3 text-2xl font-extrabold text-amber-500">
+    <div className="bg-white/10 border border-white/20 px-5 py-3 rounded-2xl backdrop-blur-md shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] text-sm font-bold uppercase tracking-wider text-gray-100 drop-shadow-md flex items-center justify-between">
+      Dragón en
+      <span className="ml-4 text-2xl font-black text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]">
         {displayTimer !== null ? `${displayTimer}s` : "--"}
       </span>
     </div>

@@ -6,89 +6,147 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // En producción validaríamos los dominios permitidos
-	},
+// Client representa un espectador único conectado
+type Client struct {
+	Conn *websocket.Conn
+	Send chan GameStats
 }
 
-// loadTimeline lee el JSON del disco y lo inyecta en la RAM.
-// Retorna un Mapa (Diccionario) donde la clave es el segundo (string) y el valor son los datos.
-func loadTimeline() (map[string]GameStats, error) {
+var (
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
+	timelineCache  map[string]GameStats
+	sortedTimeKeys []int // NUEVO: Arreglo ordenado para buscar el evento más cercano
+	cacheMutex     sync.RWMutex
+)
+
+// InitTimeline carga el JSON y pre-calcula las llaves ordenadas
+func InitTimeline() error {
 	cwd, _ := os.Getwd()
 	filePath := filepath.Join(cwd, "data", "timeline.json")
 
-	// Lee el archivo completo en bytes
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Transforma el JSON en la estructura Map de Go
 	var data map[string]GameStats
 	if err := json.Unmarshal(bytes, &data); err != nil {
-		return nil, err
+		return err
 	}
 
-	return data, nil
+	// Extraemos y ordenamos las llaves de tiempo
+	var keys []int
+	for k := range data {
+		t, err := strconv.Atoi(k)
+		if err == nil {
+			keys = append(keys, t)
+		}
+	}
+	sort.Ints(keys) // [0, 15, 30, 45, 55]
+
+	cacheMutex.Lock()
+	timelineCache = data
+	sortedTimeKeys = keys
+	cacheMutex.Unlock()
+
+	log.Printf("[STATS] Memoria RAM: %d fotogramas clave cargados.", len(data))
+	return nil
+}
+
+// getActiveState busca el último estado válido para un segundo específico
+func getActiveState(requestedTime int) (GameStats, bool) {
+	cacheMutex.RLock()
+	defer cacheMutex.RUnlock()
+
+	if len(sortedTimeKeys) == 0 {
+		return GameStats{}, false
+	}
+
+	// Algoritmo de búsqueda: encontrar la llave más grande que sea <= requestedTime
+	activeKey := sortedTimeKeys[0]
+	for _, k := range sortedTimeKeys {
+		if k <= requestedTime {
+			activeKey = k
+		} else {
+			break // Como está ordenado, si nos pasamos, ya tenemos la correcta
+		}
+	}
+
+	stats, exists := timelineCache[strconv.Itoa(activeKey)]
+	return stats, exists
 }
 
 func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("[STATS] Error al establecer conexión WebSocket: %v", err)
+		log.Printf("[STATS] Error Upgrading: %v", err)
 		return
 	}
-	defer conn.Close()
 
-	// 1. CARGA EN MEMORIA: Instanciamos el guion de la partida
-	timeline, err := loadTimeline()
-	if err != nil {
-		log.Printf("[STATS] Error crítico cargando timeline.json: %v", err)
-		return
+	client := &Client{
+		Conn: conn,
+		Send: make(chan GameStats, 10),
 	}
-	log.Printf("[STATS] Timeline cargado en RAM. Cliente conectado desde %s", r.RemoteAddr)
 
-	// 2. EVENT LOOP (Bucle infinito de escucha)
+	log.Printf("[WS] 🟢 Cliente conectado: %s", r.RemoteAddr)
+
+	defer func() {
+		log.Printf("[WS] 🔴 Cliente desconectado: %s. Liberando recursos...", r.RemoteAddr)
+		close(client.Send)
+		client.Conn.Close()
+	}()
+
+	go client.writePump()
+
+	// Bucle principal de lectura
 	for {
-		// El código se pausa aquí hasta que React envía un mensaje por el WebSocket
-		_, msgBytes, err := conn.ReadMessage()
+		_, msgBytes, err := client.Conn.ReadMessage()
 		if err != nil {
-			log.Printf("[STATS] Cliente desconectado.")
 			break
 		}
 
-		// Parseamos el mensaje recibido (Ej: {"time": 10})
-		var clientMsg ClientMessage
+		// Asumimos que ClientMessage tiene un campo int 'Time'
+		var clientMsg struct {
+			Time int `json:"time"`
+		}
 		if err := json.Unmarshal(msgBytes, &clientMsg); err != nil {
-			log.Printf("[STATS] Advertencia: Mensaje inválido del cliente: %s", string(msgBytes))
 			continue
 		}
 
-		// 3. COMPLEJIDAD O(1): Convertimos el número 10 a texto "10" y buscamos en el diccionario
-		timeKey := strconv.Itoa(clientMsg.Time)
+		// NUEVO: Usamos la función inteligente de búsqueda en lugar de coincidencia exacta
+		stats, exists := getActiveState(clientMsg.Time)
 
-		// Evaluamos si en ese segundo exacto hay datos guardados en nuestro timeline.json
-		if stats, exists := timeline[timeKey]; exists {
-
-			// --- LÓGICA DE NEGOCIO (Data Science) ---
-			// Calculamos dinámicamente la probabilidad en tiempo real
+		if exists {
 			stats.WinProb = CalculateWinProbability(stats.GoldDiff)
+			client.Send <- stats
+		}
+	}
+}
 
-			// Si existen, disparamos los datos ofuscados y calculados de vuelta a React
-			if err := conn.WriteJSON(stats); err != nil {
-				log.Printf("[STATS] Error enviando paquete de datos: %v", err)
-				break
-			}
-			// Imprimimos en consola para auditar nuestro algoritmo
-			log.Printf("[STATS] Segundo %s despachado | WinProb Azul: %.2f%%", timeKey, stats.WinProb)
+func (c *Client) writePump() {
+	for {
+		stats, ok := <-c.Send
+		if !ok {
+			return
+		}
+		err := c.Conn.WriteJSON(stats)
+		if err != nil {
+			log.Printf("[WS] Error de escritura: %v", err)
+			return
 		}
 	}
 }
