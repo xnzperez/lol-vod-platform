@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/xnzperez/lol-vod-platform/backend/internal/db"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/stats"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/vod"
 )
@@ -16,6 +17,11 @@ func main() {
 	// 1. INICIALIZAR LA CACHÉ EN RAM (¡Vital para la arquitectura concurrente!)
 	if err := stats.InitTimeline(); err != nil {
 		log.Fatalf("Error crítico al iniciar el Timeline en RAM: %v", err)
+	}
+
+	// 2. INICIALIZAR LA BASE DE DATOS (NUEVO)
+	if err := db.InitDB(); err != nil {
+		log.Fatalf("Error crítico al conectar a la base de datos: %v", err)
 	}
 
 	mux := http.NewServeMux()
