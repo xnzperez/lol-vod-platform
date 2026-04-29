@@ -1,86 +1,60 @@
 import { useEffect, useRef } from "react";
-import Hls from "hls.js";
+import YouTube from "react-youtube"; // SOLUCIÓN: Únicamente importación por defecto
 
-// 1. Modificación: Añadimos la función callback a las propiedades (Props)
-// Esto permite que el componente padre (App.tsx) sepa en qué segundo va el video.
 interface VideoPlayerProps {
-  url: string;
+  videoId: string;
   onTimeUpdate: (time: number) => void;
-  onPlay?: () => void;
-  onPause?: () => void;
+  startTimeOffset?: number;
 }
 
-// 2. Modificación: Desestructuramos onTimeUpdate para poder usarlo dentro del componente
 export const VideoPlayer = ({
-  url,
+  videoId,
   onTimeUpdate,
-  onPlay,
-  onPause,
+  startTimeOffset = 0,
 }: VideoPlayerProps) => {
-  // useRef nos permite acceder directamente al elemento <video> real del DOM
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // Usamos 'any' para evitar que Vite intente buscar tipos inexistentes en runtime
+  const playerRef = useRef<any>(null);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const interval = setInterval(async () => {
+      // Validamos que el reproductor exista y tenga el método disponible
+      if (playerRef.current && playerRef.current.getCurrentTime) {
+        const currentTime = await playerRef.current.getCurrentTime();
+        const gameTime = Math.floor(currentTime - startTimeOffset);
 
-    let hls: Hls;
-
-    // Verificamos si el navegador soporta HLS.js (Chrome, Firefox, Edge)
-    if (Hls.isSupported()) {
-      hls = new Hls({
-        // debug: true, // Puedes cambiar esto a true si quieres ver cómo descarga cada fragmento .ts
-      });
-
-      // Le pasamos la URL de nuestro backend en Go
-      hls.loadSource(url);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log(
-          "[HLS] Manifiesto cargado exitosamente. Listo para reproducir.",
-        );
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        console.error("[HLS] Error de red o decodificación:", data);
-      });
-
-      // Soporte nativo (Principalmente para Safari en macOS/iOS)
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = url;
-    }
-
-    // Cleanup: Destruimos la instancia de HLS si el componente se desmonta
-    // Esto es CRÍTICO para evitar fugas de memoria (Memory Leaks) en React
-    return () => {
-      if (hls) {
-        hls.destroy();
+        if (gameTime >= 0) {
+          onTimeUpdate(gameTime);
+        }
       }
-    };
-  }, [url]);
+    }, 1000);
 
-  // 3. Nueva Función: Interceptora de tiempo
-  // Esta función se ejecuta automáticamente varias veces por segundo mientras el video se reproduce
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      // videoRef.current.currentTime devuelve el tiempo en milisegundos flotantes (ej: 10.45321)
-      // Usamos Math.floor para redondearlo hacia abajo y obtener el segundo entero exacto (ej: 10)
-      // Esto evita saturar el WebSocket enviando cientos de peticiones por segundo.
-      const currentSecond = Math.floor(videoRef.current.currentTime);
-      onTimeUpdate(currentSecond);
-    }
+    return () => clearInterval(interval);
+  }, [onTimeUpdate, startTimeOffset]);
+
+  // Manejador del evento de inicialización de YouTube
+  const onReady = (event: any) => {
+    playerRef.current = event.target;
+    console.log("[YOUTUBE] 🟢 Reproductor listo e instanciado.");
   };
 
   return (
-    <video
-      ref={videoRef}
-      className="w-full h-full object-cover bg-black"
-      controls
-      muted // Empezar muteado ayuda a evitar bloqueos de Autoplay en navegadores modernos
-      onTimeUpdate={handleTimeUpdate} // 4. Enlazamos nuestra función al evento nativo de HTML5
-      onPlay={onPlay} // Avisa que empezó a reproducir
-      onPause={onPause} // Avisa que se pausó
-    />
+    <div className="w-full h-full bg-black overflow-hidden relative">
+      <YouTube
+        videoId={videoId}
+        opts={{
+          width: "100%",
+          height: "100%",
+          playerVars: {
+            autoplay: 1,
+            start: startTimeOffset,
+            rel: 0,
+            modestbranding: 1,
+          },
+        }}
+        onReady={onReady}
+        className="absolute top-0 left-0 w-full h-full"
+        iframeClassName="w-full h-full object-cover"
+      />
+    </div>
   );
 };
