@@ -15,9 +15,17 @@ type TimelineResponse struct {
 	} `json:"metadata"`
 	Info struct {
 		Frames []struct {
-			Timestamp int `json:"timestamp"`
+			Timestamp         int                         `json:"timestamp"`
+			ParticipantFrames map[string]ParticipantFrame `json:"participantFrames"`
 		} `json:"frames"`
 	} `json:"info"`
+}
+
+type ParticipantFrame struct {
+	ParticipantID int `json:"participantId"`
+	TotalGold     int `json:"totalGold"`
+	Level         int `json:"level"`
+	Xp            int `json:"xp"`
 }
 
 // GetMatchTimeline ejecuta la petición HTTP hacia los servidores de Riot.

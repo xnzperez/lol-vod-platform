@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"sort"
-	"strconv"
 	"sync"
+
+	"github.com/xnzperez/lol-vod-platform/backend/internal/db"
+	"github.com/xnzperez/lol-vod-platform/backend/internal/service"
 
 	"github.com/gorilla/websocket"
 )
@@ -16,7 +15,7 @@ import (
 // Client representa un espectador único conectado
 type Client struct {
 	Conn *websocket.Conn
-	Send chan GameStats
+	Send chan service.ProcessedFrame // Cambiado a nuestra estructura limpia
 }
 
 var (
@@ -24,70 +23,59 @@ var (
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			return true
+			return true // En producción, aquí validaremos los CORS
 		},
 	}
 
-	timelineCache  map[string]GameStats
-	sortedTimeKeys []int // NUEVO: Arreglo ordenado para buscar el evento más cercano
-	cacheMutex     sync.RWMutex
+	// El caché ahora es un slice (array) directo, ya no un map
+	timelineCache []service.ProcessedFrame
+	cacheMutex    sync.RWMutex
 )
 
-// InitTimeline carga el JSON y pre-calcula las llaves ordenadas
-func InitTimeline() error {
-	cwd, _ := os.Getwd()
-	filePath := filepath.Join(cwd, "data", "timeline.json")
+// InitTimeline carga el JSON procesado directamente desde Supabase en O(1)
+func InitTimeline(matchID string) error {
+	var rawJSON []byte
+	query := `SELECT processed_timeline FROM matches_data WHERE match_id = $1`
 
-	bytes, err := os.ReadFile(filePath)
+	err := db.DB.QueryRow(query, matchID).Scan(&rawJSON)
 	if err != nil {
 		return err
 	}
 
-	var data map[string]GameStats
-	if err := json.Unmarshal(bytes, &data); err != nil {
+	var timeline []service.ProcessedFrame
+	if err := json.Unmarshal(rawJSON, &timeline); err != nil {
 		return err
 	}
 
-	// Extraemos y ordenamos las llaves de tiempo
-	var keys []int
-	for k := range data {
-		t, err := strconv.Atoi(k)
-		if err == nil {
-			keys = append(keys, t)
-		}
-	}
-	sort.Ints(keys) // [0, 15, 30, 45, 55]
-
 	cacheMutex.Lock()
-	timelineCache = data
-	sortedTimeKeys = keys
+	timelineCache = timeline
 	cacheMutex.Unlock()
 
-	log.Printf("[STATS] Memoria RAM: %d fotogramas clave cargados.", len(data))
+	log.Printf("[STATS] 🟢 Memoria RAM: %d fotogramas clave cargados desde Supabase.", len(timeline))
 	return nil
 }
 
-// getActiveState busca el último estado válido para un segundo específico
-func getActiveState(requestedTime int) (GameStats, bool) {
+// getActiveState busca el último estado válido usando acceso O(1)
+func getActiveState(requestedTimeSeconds int) (service.ProcessedFrame, bool) {
 	cacheMutex.RLock()
 	defer cacheMutex.RUnlock()
 
-	if len(sortedTimeKeys) == 0 {
-		return GameStats{}, false
+	if len(timelineCache) == 0 {
+		return service.ProcessedFrame{}, false
 	}
 
-	// Algoritmo de búsqueda: encontrar la llave más grande que sea <= requestedTime
-	activeKey := sortedTimeKeys[0]
-	for _, k := range sortedTimeKeys {
-		if k <= requestedTime {
-			activeKey = k
-		} else {
-			break // Como está ordenado, si nos pasamos, ya tenemos la correcta
-		}
+	// Matemática simple: 150 segundos / 60 = índice 2 (Minuto 2)
+	minute := requestedTimeSeconds / 60
+
+	// Prevención de Out of Bounds si el video dura más que los datos de la API
+	if minute >= len(timelineCache) {
+		minute = len(timelineCache) - 1
+	}
+	if minute < 0 {
+		minute = 0
 	}
 
-	stats, exists := timelineCache[strconv.Itoa(activeKey)]
-	return stats, exists
+	return timelineCache[minute], true
 }
 
 func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +87,7 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	client := &Client{
 		Conn: conn,
-		Send: make(chan GameStats, 10),
+		Send: make(chan service.ProcessedFrame, 10),
 	}
 
 	log.Printf("[WS] 🟢 Cliente conectado: %s", r.RemoteAddr)
@@ -112,14 +100,12 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	go client.writePump()
 
-	// Bucle principal de lectura
 	for {
 		_, msgBytes, err := client.Conn.ReadMessage()
 		if err != nil {
 			break
 		}
 
-		// Asumimos que ClientMessage tiene un campo int 'Time'
 		var clientMsg struct {
 			Time int `json:"time"`
 		}
@@ -127,11 +113,8 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// NUEVO: Usamos la función inteligente de búsqueda en lugar de coincidencia exacta
 		stats, exists := getActiveState(clientMsg.Time)
-
 		if exists {
-			stats.WinProb = CalculateWinProbability(stats.GoldDiff)
 			client.Send <- stats
 		}
 	}

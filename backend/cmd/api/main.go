@@ -10,41 +10,44 @@ import (
 
 	"github.com/xnzperez/lol-vod-platform/backend/internal/db"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/riot"
+	"github.com/xnzperez/lol-vod-platform/backend/internal/service"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/stats"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/vod"
 )
 
 func main() {
-	// 1. INICIALIZAR LA CACHÉ EN RAM (¡Vital para la arquitectura concurrente!)
-	if err := stats.InitTimeline(); err != nil {
-		log.Fatalf("Error crítico al iniciar el Timeline en RAM: %v", err)
-	}
-
-	// 2. INICIALIZAR LA BASE DE DATOS (NUEVO)
+	// 1. INICIALIZAR LA BASE DE DATOS
 	if err := db.InitDB(); err != nil {
 		log.Fatalf("Error crítico al conectar a la base de datos: %v", err)
 	}
 
-	// 3. INICIALIZAR EL CLIENTE DE RIOT
+	// 2. INICIALIZAR EL CLIENTE DE RIOT Y SERVICIOS
 	riotClient, err := riot.NewClient()
 	if err != nil {
 		log.Fatalf("Error crítico al inicializar cliente de Riot: %v", err)
 	}
+	matchService := service.NewMatchService(riotClient)
+	_ = matchService // Evita error de variable no usada por ahora
 
-	// --- [PRUEBA DE EXTRACCIÓN - RIOT API] ---
-	// Usaremos un ID de partida de prueba de la región LAN (LA1).
-	// Si este ID ya caducó en los servidores de Riot, la consola arrojará un código 404, lo cual es normal.
-	testRegion := "americas"
-	testMatchID := "LA1_1654100537" // ID de prueba (formato: SERVIDOR_NUMERO)
-
-	log.Printf("[RIOT] Intentando extraer Timeline de la partida: %s en la región: %s...", testMatchID, testRegion)
-
-	timeline, err := riotClient.GetMatchTimeline(testRegion, testMatchID)
-	if err != nil {
-		log.Printf("[RIOT] 🔴 Error en la prueba (Aviso: Si es 404, significa que el Match ID no existe): %v", err)
-	} else {
-		log.Printf("[RIOT] 🟢 ¡Extracción Exitosa! Match ID: %s | Fotogramas extraídos: %d", timeline.Metadata.MatchID, len(timeline.Info.Frames))
+	// 3. INICIALIZAR LA CACHÉ EN RAM LEYENDO DE SUPABASE (Ahora sí)
+	// Usamos el ID de la partida que ya procesamos y guardamos ayer
+	if err := stats.InitTimeline("LA1_1654100537"); err != nil {
+		log.Fatalf("Error crítico al iniciar el Timeline en RAM desde Supabase: %v", err)
 	}
+
+	// 4. INICIALIZAR LA CACHÉ EN RAM LEYENDO DE SUPABASE
+	if err := stats.InitTimeline("LA1_1654100537"); err != nil {
+		log.Fatalf("Error crítico al iniciar el Timeline en RAM desde Supabase: %v", err)
+	}
+
+	// 5. PRUEBA DE FUEGO (QUITAR / COMENTAR)
+	/* go func() {
+		err := matchService.ProcessAndSaveMatch("americas", "LA1_1654100537")
+		if err != nil {
+			log.Printf("[MAIN] 🔴 Error procesando partida inicial: %v", err)
+		}
+	}()
+	*/
 
 	mux := http.NewServeMux()
 
@@ -68,7 +71,7 @@ func main() {
 	mux.HandleFunc("/api/export", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		err := stats.ExportAnalytics()
+		/*err := stats.ExportAnalytics()
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -76,7 +79,7 @@ func main() {
 				"detalles": err.Error(),
 			})
 			return
-		}
+		}*/
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
