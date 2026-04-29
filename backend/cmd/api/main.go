@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xnzperez/lol-vod-platform/backend/internal/db"
+	"github.com/xnzperez/lol-vod-platform/backend/internal/riot"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/stats"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/vod"
 )
@@ -22,6 +23,27 @@ func main() {
 	// 2. INICIALIZAR LA BASE DE DATOS (NUEVO)
 	if err := db.InitDB(); err != nil {
 		log.Fatalf("Error crítico al conectar a la base de datos: %v", err)
+	}
+
+	// 3. INICIALIZAR EL CLIENTE DE RIOT
+	riotClient, err := riot.NewClient()
+	if err != nil {
+		log.Fatalf("Error crítico al inicializar cliente de Riot: %v", err)
+	}
+
+	// --- [PRUEBA DE EXTRACCIÓN - RIOT API] ---
+	// Usaremos un ID de partida de prueba de la región LAN (LA1).
+	// Si este ID ya caducó en los servidores de Riot, la consola arrojará un código 404, lo cual es normal.
+	testRegion := "americas"
+	testMatchID := "LA1_1654100537" // ID de prueba (formato: SERVIDOR_NUMERO)
+
+	log.Printf("[RIOT] Intentando extraer Timeline de la partida: %s en la región: %s...", testMatchID, testRegion)
+
+	timeline, err := riotClient.GetMatchTimeline(testRegion, testMatchID)
+	if err != nil {
+		log.Printf("[RIOT] 🔴 Error en la prueba (Aviso: Si es 404, significa que el Match ID no existe): %v", err)
+	} else {
+		log.Printf("[RIOT] 🟢 ¡Extracción Exitosa! Match ID: %s | Fotogramas extraídos: %d", timeline.Metadata.MatchID, len(timeline.Info.Frames))
 	}
 
 	mux := http.NewServeMux()
