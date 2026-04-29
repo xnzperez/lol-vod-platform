@@ -1,8 +1,8 @@
-import { decodePayload, type GameStats } from "./decoder"; // Importamos la librería de físicas/toasts Sileo
-// (Nota: asumo la sintaxis estándar de instanciación, ajusta si la doc de Sileo indica otra)
 import { sileo } from "sileo";
-// Definimos el tipo de la función que reaccionará a los mensajes
-type OnStatsUpdateCallback = (stats: GameStats) => void;
+import type { MatchFrameData } from "../features/player/useGameStats";
+
+// Usamos la nueva interfaz que coincide con Go
+type OnStatsUpdateCallback = (stats: MatchFrameData) => void;
 
 export class VODWebSocketClient {
   private ws: WebSocket | null = null;
@@ -13,52 +13,44 @@ export class VODWebSocketClient {
     this.url = url;
   }
 
-  // Método para suscribir la interfaz gráfica a los cambios de datos
   public subscribe(callback: OnStatsUpdateCallback): void {
     this.onUpdate = callback;
   }
 
-  // Inicializa la conexión y maneja el ciclo de vida de la red
   public connect(): void {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      console.log("[WS] Conexión establecida con éxito.");
-      // Usamos Sileo para notificar al usuario final de forma visual
+      console.log("[WS] 🟢 Conexión establecida con éxito.");
       sileo.success({ title: "Sincronización en vivo activada" });
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
-      // 1. Interceptamos el texto crudo
-      const rawData = event.data as string;
+      try {
+        // 1. Parseamos el JSON directo de Supabase/Go, SIN el decoder viejo
+        const cleanStats = JSON.parse(event.data) as MatchFrameData;
 
-      // 2. Pasamos el texto por nuestro decodificador
-      const cleanStats = decodePayload(rawData);
-
-      // 3. Si la decodificación fue exitosa y tenemos alguien escuchando, enviamos los datos
-      if (cleanStats && this.onUpdate) {
-        this.onUpdate(cleanStats);
+        // 2. Notificamos a React inmediatamente
+        if (this.onUpdate) {
+          this.onUpdate(cleanStats);
+        }
+      } catch (error) {
+        console.error("[WS] 🔴 Error parseando JSON del servidor:", error);
       }
     };
 
     this.ws.onclose = () => {
-      console.warn("[WS] Conexión perdida. Intentando reconectar...");
-      sileo.error({
-        title: "Se perdió la conexión con el servidor",
-      });
-
-      // Buena Práctica: Intentar reconectar automáticamente después de 3 segundos
+      console.warn("[WS] 🟡 Conexión perdida. Intentando reconectar...");
+      sileo.error({ title: "Se perdió la conexión con el servidor" });
       setTimeout(() => this.connect(), 3000);
     };
 
     this.ws.onerror = (error: Event) => {
-      console.error("[WS] Error de red:", error);
+      console.error("[WS] 🔴 Error de red:", error);
     };
   }
 
-  // Método para enviar el segundo actual del video al backend en Go
   public sendMessage(payload: object): void {
-    // Verificamos que el túnel TCP esté abierto antes de enviar datos
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload));
     }
