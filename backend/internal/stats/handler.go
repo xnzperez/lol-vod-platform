@@ -6,16 +6,15 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/db"
 	"github.com/xnzperez/lol-vod-platform/backend/internal/service"
-
-	"github.com/gorilla/websocket"
 )
 
 // Client representa un espectador único conectado
 type Client struct {
 	Conn *websocket.Conn
-	Send chan service.ProcessedFrame // Cambiado a nuestra estructura limpia
+	Send chan service.ProcessedFrame
 }
 
 var (
@@ -27,13 +26,22 @@ var (
 		},
 	}
 
-	// El caché ahora es un slice (array) directo, ya no un map
-	timelineCache []service.ProcessedFrame
+	// Refactor: El caché ahora es un mapa para soportar múltiples VODs concurrentes en O(1)
+	timelineCache = make(map[string][]service.ProcessedFrame)
 	cacheMutex    sync.RWMutex
 )
 
-// InitTimeline carga el JSON procesado directamente desde Supabase en O(1)
+// InitTimeline carga el JSON procesado si no está ya en memoria
 func InitTimeline(matchID string) error {
+	// 1. Verificamos si ya está en caché para ahorrar I/O de base de datos
+	cacheMutex.RLock()
+	_, exists := timelineCache[matchID]
+	cacheMutex.RUnlock()
+
+	if exists {
+		return nil
+	}
+
 	var rawJSON []byte
 	query := `SELECT processed_timeline FROM matches_data WHERE match_id = $1`
 
@@ -47,38 +55,52 @@ func InitTimeline(matchID string) error {
 		return err
 	}
 
+	// 2. Guardamos en el espacio de memoria específico del VOD
 	cacheMutex.Lock()
-	timelineCache = timeline
+	timelineCache[matchID] = timeline
 	cacheMutex.Unlock()
 
-	log.Printf("[STATS] 🟢 Memoria RAM: %d fotogramas clave cargados desde Supabase.", len(timeline))
+	log.Printf("[STATS] 🟢 Memoria RAM: %d fotogramas cargados para el VOD %s.", len(timeline), matchID)
 	return nil
 }
 
-// getActiveState busca el último estado válido usando acceso O(1)
-func getActiveState(requestedTimeSeconds int) (service.ProcessedFrame, bool) {
+// getActiveState busca el último estado válido aislando por matchID
+func getActiveState(matchID string, requestedTimeSeconds int) (service.ProcessedFrame, bool) {
 	cacheMutex.RLock()
 	defer cacheMutex.RUnlock()
 
-	if len(timelineCache) == 0 {
+	timeline, exists := timelineCache[matchID]
+	if !exists || len(timeline) == 0 {
 		return service.ProcessedFrame{}, false
 	}
 
-	// Matemática simple: 150 segundos / 60 = índice 2 (Minuto 2)
 	minute := requestedTimeSeconds / 60
 
-	// Prevención de Out of Bounds si el video dura más que los datos de la API
-	if minute >= len(timelineCache) {
-		minute = len(timelineCache) - 1
+	if minute >= len(timeline) {
+		minute = len(timeline) - 1
 	}
 	if minute < 0 {
 		minute = 0
 	}
 
-	return timelineCache[minute], true
+	return timeline[minute], true
 }
 
 func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
+	// 1. Extraemos el match_id de la URL (ej: ws://localhost:8080/ws/stats?match_id=LA1_1654100537)
+	matchID := r.URL.Query().Get("match_id")
+	if matchID == "" {
+		http.Error(w, "El parámetro match_id es obligatorio", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Cargamos el timeline en memoria si es el primer espectador de este VOD
+	if err := InitTimeline(matchID); err != nil {
+		log.Printf("[WS] 🔴 Error cargando datos de Supabase para %s: %v", matchID, err)
+		http.Error(w, "Datos de la partida no encontrados", http.StatusNotFound)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[STATS] Error Upgrading: %v", err)
@@ -90,10 +112,10 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		Send: make(chan service.ProcessedFrame, 10),
 	}
 
-	log.Printf("[WS] 🟢 Cliente conectado: %s", r.RemoteAddr)
+	log.Printf("[WS] 🟢 Cliente conectado a %s: %s", matchID, r.RemoteAddr)
 
 	defer func() {
-		log.Printf("[WS] 🔴 Cliente desconectado: %s. Liberando recursos...", r.RemoteAddr)
+		log.Printf("[WS] 🔴 Cliente desconectado de %s. Liberando recursos...", matchID)
 		close(client.Send)
 		client.Conn.Close()
 	}()
@@ -113,7 +135,7 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		stats, exists := getActiveState(clientMsg.Time)
+		stats, exists := getActiveState(matchID, clientMsg.Time)
 		if exists {
 			client.Send <- stats
 		}

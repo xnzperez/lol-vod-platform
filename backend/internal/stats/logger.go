@@ -5,19 +5,20 @@ import (
 )
 
 // LogTimelineStats imprime un resumen estructurado del estado del juego en la consola
-func LogTimelineStats() {
+func LogTimelineStats(matchID string) {
 	cacheMutex.RLock()
 	defer cacheMutex.RUnlock()
 
-	if len(timelineCache) == 0 {
-		log.Println("[STATS] 🔴 No hay datos cargados en la caché para mostrar.")
+	timeline, exists := timelineCache[matchID]
+	if !exists || len(timeline) == 0 {
+		log.Printf("[STATS] 🔴 No hay datos cargados en la caché para mostrar del match: %s.", matchID)
 		return
 	}
 
-	log.Println("=== [DEBUG] RESUMEN DE PARTIDA EN RAM ===")
-	// Mostramos solo el primer y último frame para no saturar la consola
-	primerFrame := timelineCache[0]
-	ultimoFrame := timelineCache[len(timelineCache)-1]
+	log.Printf("=== [DEBUG] RESUMEN DE PARTIDA EN RAM (%s) ===", matchID)
+	// Extraemos el primer y último frame del arreglo específico de esta partida
+	primerFrame := timeline[0]
+	ultimoFrame := timeline[len(timeline)-1]
 
 	log.Printf("-> Inicio (Min 0): Diff Oro: %d | Prob. Victoria Azul: %.2f%%",
 		primerFrame.GoldDifference, primerFrame.WinProbability*100)

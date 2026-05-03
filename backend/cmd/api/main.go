@@ -27,27 +27,17 @@ func main() {
 		log.Fatalf("Error crítico al inicializar cliente de Riot: %v", err)
 	}
 	matchService := service.NewMatchService(riotClient)
-	_ = matchService // Evita error de variable no usada por ahora
+	_ = matchService
 
-	// 3. INICIALIZAR LA CACHÉ EN RAM LEYENDO DE SUPABASE (Ahora sí)
-	// Usamos el ID de la partida que ya procesamos y guardamos ayer
-	if err := stats.InitTimeline("LA1_1654100537"); err != nil {
-		log.Fatalf("Error crítico al iniciar el Timeline en RAM desde Supabase: %v", err)
-	}
-
-	// 4. INICIALIZAR LA CACHÉ EN RAM LEYENDO DE SUPABASE
-	if err := stats.InitTimeline("LA1_1654100537"); err != nil {
-		log.Fatalf("Error crítico al iniciar el Timeline en RAM desde Supabase: %v", err)
-	}
-
-	// 5. PRUEBA DE FUEGO (QUITAR / COMENTAR)
-	/* go func() {
+	// 3. REPROCESAMIENTO FORZADO
+	/*go func() {
 		err := matchService.ProcessAndSaveMatch("americas", "LA1_1654100537")
 		if err != nil {
-			log.Printf("[MAIN] 🔴 Error procesando partida inicial: %v", err)
+			log.Printf("[MAIN] 🔴 Error: %v", err)
+		} else {
+			log.Printf("[MAIN] 🟢 Partida LA1 procesada con eventos granulares. Lista para React.")
 		}
-	}()
-	*/
+	}() */
 
 	mux := http.NewServeMux()
 
