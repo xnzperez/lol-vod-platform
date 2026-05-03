@@ -5,6 +5,7 @@ import { VideoPlayer } from "../features/player/VideoPlayer";
 import { WinProbabilityBar } from "../features/player/WinProbabilityBar";
 import { useGameStats } from "../features/player/useGameStats";
 import { NotificationFeed } from "../features/player/NotificationFeed";
+import { MatchScoreboard } from "../features/player/MatchScoreboard";
 
 export function WatchView() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -97,19 +98,11 @@ export function WatchView() {
         </div>
         <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 h-[600px] overflow-y-auto">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
-            Match Stats: {matchId}
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            Panel de Telemetría
           </h2>
           <div className="text-sm text-slate-400">
-            {stats ? (
-              <pre className="whitespace-pre-wrap font-mono text-xs text-green-400 bg-black/40 p-3 rounded-lg border border-green-500/20">
-                {JSON.stringify(stats, null, 2)}
-              </pre>
-            ) : (
-              <p className="italic text-slate-500">
-                Esperando respuesta del servidor en Go...
-              </p>
-            )}
+            <MatchScoreboard stats={stats} />
           </div>
         </div>
       </div>
