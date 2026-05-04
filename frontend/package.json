@@ -17,6 +17,7 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.14.2",
     "react-youtube": "^10.1.0",
+    "recharts": "^3.8.1",
     "sileo": "^0.1.5",
     "tailwindcss": "^4.2.1"
   },
