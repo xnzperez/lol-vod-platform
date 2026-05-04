@@ -5,7 +5,8 @@ import { VideoPlayer } from "../features/player/VideoPlayer";
 import { MatchScoreboard } from "../features/player/MatchScoreboard";
 import { useGameStats } from "../features/player/useGameStats";
 import { NotificationFeed } from "../features/player/NotificationFeed";
-import { MatchTimeline } from "../features/player/MatchTimeline"; // NUEVA IMPORTACIÓN
+import { MatchTimeline } from "../features/player/MatchTimeline";
+import { MatchEventLog } from "../features/player/MatchEventLog";
 import { useAuth } from "../core/AuthContext";
 
 export function WatchView() {
@@ -24,8 +25,6 @@ export function WatchView() {
   const { stats, updateServerTime } = useGameStats(
     `ws://localhost:8080/ws/stats?match_id=${matchId}`,
   );
-
-  console.log("DTO DEL BACKEND:", JSON.stringify(stats, null, 2));
 
   useEffect(() => {
     async function fetchMatchData() {
@@ -130,7 +129,7 @@ export function WatchView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Columna Principal (Video + Gráfico) */}
+        {/* Columna Principal (Video + Gráfico + Tabla de Eventos) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video w-full rounded-xl overflow-hidden bg-black ring-1 ring-slate-800 shadow-2xl relative">
             {stats && stats.events && (
@@ -143,12 +142,15 @@ export function WatchView() {
             />
           </div>
 
-          {/* NUEVO: Inyección del gráfico de telemetría */}
+          {/* Gráfico de telemetría */}
           <MatchTimeline currentStats={stats} />
+
+          {/* NUEVO: Tabla de Eventos */}
+          <MatchEventLog currentStats={stats} />
         </div>
 
         {/* Columna Lateral (Scoreboard) */}
-        <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 h-[600px] overflow-y-auto">
+        <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 h-[600px] sticky top-20 overflow-y-auto">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
             Panel de Telemetría

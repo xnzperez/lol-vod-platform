@@ -8,6 +8,22 @@
     color: #c9d1d9;
     margin: 0;
     padding: 0;
-    overflow: hidden; /* Evita scrollbars innecesarias en la app de video */
+    overflow-x: hidden; /* Evita scroll horizontal innecesario */
+    overflow-y: auto; /* CORRECCIÓN: Permite hacer scroll hacia abajo para ver las gráficas y tablas */
   }
+}
+
+/* Scrollbar personalizada para mantener el estilo limpio de tu plataforma */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
