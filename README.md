@@ -1,10 +1,3 @@
-from ds_python_interpreter import execute
-
-readme_content = """# Lol Vod Platform - Análisis y Telemetría de eSports
-
-**Plataforma multimedia avanzada para la revisión táctica de partidas competitivas de League of Legends, sincronizando VODs con telemetría en tiempo real.**
-
-## TL;DR
 Plataforma orientada a analistas y coaches que sincroniza video HLS con datos de la API de Riot Games mediante WebSockets. Utiliza un backend en Go, frontend en React 19 y persistencia en Supabase con modelos predictivos de regresión logística.
 
 ---
