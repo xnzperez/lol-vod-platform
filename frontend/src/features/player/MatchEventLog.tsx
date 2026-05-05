@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
+import { getGameItem } from "../../core/riotDictionary"; // Eliminamos el mock de campeones
 
-// 1. Tipado exacto del Payload que envía tu backend en Go
 interface RawEvent {
   type: string;
   killerId?: number;
@@ -14,7 +14,6 @@ interface GameStats {
   events: RawEvent[] | null;
 }
 
-// 2. Tipado de lo que necesita la Interfaz de Usuario (UI)
 interface UIEvent {
   id: string;
   time: string;
@@ -26,16 +25,18 @@ interface UIEvent {
 
 interface MatchEventLogProps {
   currentStats: GameStats | null;
+  championMap: Record<number, string>; // NUEVO: Recibimos el diccionario real
 }
 
-// Helper para determinar el lado: 1-5 Azul, 6-10 Rojo
 const getSide = (id?: number) => (id && id <= 5 ? "blue" : "red");
 
-export function MatchEventLog({ currentStats }: MatchEventLogProps) {
+export function MatchEventLog({
+  currentStats,
+  championMap,
+}: MatchEventLogProps) {
   const [eventLog, setEventLog] = useState<UIEvent[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Acumulador y Parseador de eventos
   useEffect(() => {
     if (
       !currentStats ||
@@ -46,7 +47,6 @@ export function MatchEventLog({ currentStats }: MatchEventLogProps) {
 
     const currentMinute = currentStats.minute;
 
-    // 3. Adapter: Transformar DTO crudo a estructura UI
     const newUIEvents: UIEvent[] = currentStats.events.map((raw, index) => {
       let player = "-";
       let target = "-";
@@ -55,20 +55,26 @@ export function MatchEventLog({ currentStats }: MatchEventLogProps) {
 
       if (raw.type === "CHAMPION_KILL") {
         action = "Asesinato ⚔️";
-        player = `Jugador ${raw.killerId}`;
-        target = `Jugador ${raw.victimId}`;
+        // Usamos el mapa dinámico que viene de la base de datos
+        player = raw.killerId
+          ? championMap[raw.killerId] || `Jugador ${raw.killerId}`
+          : "-";
+        target = raw.victimId
+          ? championMap[raw.victimId] || `Jugador ${raw.victimId}`
+          : "-";
         side = getSide(raw.killerId);
       } else if (raw.type === "ITEM_PURCHASED") {
         action = "Compra 💰";
-        player = `Jugador ${raw.participantId}`;
-        target = `Ítem ID: ${raw.itemId}`;
+        player = raw.participantId
+          ? championMap[raw.participantId] || `Jugador ${raw.participantId}`
+          : "-";
+        target = getGameItem(raw.itemId);
         side = getSide(raw.participantId);
       }
 
       return {
-        // Generamos un ID compuesto para deduplicar (Minuto + Tipo + Actores + Index)
         id: `${currentMinute}-${raw.type}-${raw.killerId || raw.participantId}-${raw.victimId || raw.itemId}-${index}`,
-        time: `Min ${currentMinute}`, // Usamos el minuto como marca de tiempo temporal
+        time: `Min ${currentMinute}`,
         side,
         player,
         action,
@@ -77,16 +83,14 @@ export function MatchEventLog({ currentStats }: MatchEventLogProps) {
     });
 
     setEventLog((prev) => {
-      // 4. Filtro estricto anti-duplicación del WebSocket
       const prevIds = new Set(prev.map((e) => e.id));
       const uniqueNewEvents = newUIEvents.filter((e) => !prevIds.has(e.id));
 
-      if (uniqueNewEvents.length === 0) return prev; // Si no hay nada nuevo, abortar render
+      if (uniqueNewEvents.length === 0) return prev;
       return [...prev, ...uniqueNewEvents];
     });
-  }, [currentStats]);
+  }, [currentStats, championMap]); // Añadimos championMap a las dependencias
 
-  // Efecto para auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

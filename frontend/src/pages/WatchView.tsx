@@ -22,6 +22,9 @@ export function WatchView() {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // NUEVO: Estado para almacenar el diccionario real de campeones
+  const [championMap, setChampionMap] = useState<Record<number, string>>({});
+
   const { stats, updateServerTime } = useGameStats(
     `ws://localhost:8080/ws/stats?match_id=${matchId}`,
   );
@@ -30,9 +33,10 @@ export function WatchView() {
     async function fetchMatchData() {
       setLoading(true);
 
+      // NUEVO: Agregamos match_info a la consulta de Supabase
       const { data: matchData, error: matchError } = await supabase
         .from("matches_data")
-        .select("vod_url, start_time_offset")
+        .select("vod_url, start_time_offset, match_info")
         .eq("match_id", matchId)
         .single();
 
@@ -46,6 +50,20 @@ export function WatchView() {
           id: youtubeId || "",
           offset: matchData.start_time_offset,
         });
+
+        // NUEVO: Procesamos el JSON de Riot para armar el mapa de campeones
+        if (
+          matchData.match_info &&
+          matchData.match_info.info &&
+          matchData.match_info.info.participants
+        ) {
+          const map: Record<number, string> = {};
+          matchData.match_info.info.participants.forEach((p: any) => {
+            map[p.participantId] = p.championName;
+          });
+          console.log("[HOOK DEBUG] Mapa de campeones reales:", map);
+          setChampionMap(map);
+        }
       }
 
       if (user && matchId) {
@@ -129,7 +147,6 @@ export function WatchView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Columna Principal (Video + Gráfico + Tabla de Eventos) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video w-full rounded-xl overflow-hidden bg-black ring-1 ring-slate-800 shadow-2xl relative">
             {stats && stats.events && (
@@ -142,14 +159,12 @@ export function WatchView() {
             />
           </div>
 
-          {/* Gráfico de telemetría */}
           <MatchTimeline currentStats={stats} />
 
-          {/* NUEVO: Tabla de Eventos */}
-          <MatchEventLog currentStats={stats} />
+          {/* En el próximo paso inyectaremos el championMap aquí */}
+          <MatchEventLog currentStats={stats} championMap={championMap} />
         </div>
 
-        {/* Columna Lateral (Scoreboard) */}
         <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 h-[600px] sticky top-20 overflow-y-auto">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>

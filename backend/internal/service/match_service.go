@@ -21,9 +21,16 @@ func NewMatchService(rc *riot.RiotClient) *MatchService {
 func (s *MatchService) ProcessAndSaveMatch(region, matchID string) error {
 	log.Printf("[SERVICE] Procesando partida %s...", matchID)
 
+	// 1. Obtener la Timeline (Eventos y Oro - Ya lo tenías)
 	timeline, err := s.RiotClient.GetMatchTimeline(region, matchID)
 	if err != nil {
-		return err
+		return fmt.Errorf("error obteniendo timeline: %v", err)
+	}
+
+	// 2. NUEVO: Obtener la Match Info (Metadata de jugadores y campeones)
+	matchInfo, err := s.RiotClient.GetMatch(region, matchID)
+	if err != nil {
+		return fmt.Errorf("error obteniendo match info: %v", err)
 	}
 
 	cleanData := processTimeline(timeline)
@@ -42,17 +49,24 @@ func (s *MatchService) ProcessAndSaveMatch(region, matchID string) error {
 		return fmt.Errorf("error serializando processed timeline: %v", err)
 	}
 
-	query := `INSERT INTO matches_data (match_id, region, duration_minutes, raw_timeline, processed_timeline) 
-			  VALUES ($1, $2, $3, $4, $5) 
-			  ON CONFLICT (match_id) 
-			  DO UPDATE SET processed_timeline = EXCLUDED.processed_timeline, raw_timeline = EXCLUDED.raw_timeline`
+	// 3. NUEVO: Serializar la Match Info
+	matchInfoJSON, err := json.Marshal(matchInfo)
+	if err != nil {
+		return fmt.Errorf("error serializando match info: %v", err)
+	}
 
-	_, err = db.DB.Exec(query, matchID, region, len(timeline.Info.Frames), rawJSON, processedJSON)
+	// 4. ACTUALIZADO: Inyectar match_info en la consulta SQL
+	query := `INSERT INTO matches_data (match_id, region, duration_minutes, raw_timeline, processed_timeline, match_info) 
+	          VALUES ($1, $2, $3, $4, $5, $6) 
+	          ON CONFLICT (match_id) 
+	          DO UPDATE SET processed_timeline = EXCLUDED.processed_timeline, raw_timeline = EXCLUDED.raw_timeline, match_info = EXCLUDED.match_info`
+
+	_, err = db.DB.Exec(query, matchID, region, len(timeline.Info.Frames), rawJSON, processedJSON, matchInfoJSON)
 	if err != nil {
 		return fmt.Errorf("error guardando en DB: %v", err)
 	}
 
-	log.Printf("[SERVICE] 🟢 Partida %s guardada/actualizada exitosamente con eventos granulares.", matchID)
+	log.Printf("[SERVICE] 🟢 Partida %s guardada/actualizada exitosamente con metadata de jugadores.", matchID)
 	return nil
 }
 

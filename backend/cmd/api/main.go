@@ -37,7 +37,7 @@ func main() {
 		} else {
 			log.Printf("[MAIN] 🟢 Partida LA1 procesada con eventos granulares. Lista para React.")
 		}
-	}() */
+	}()*/
 
 	mux := http.NewServeMux()
 
