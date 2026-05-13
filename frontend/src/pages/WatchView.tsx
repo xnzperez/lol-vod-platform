@@ -25,13 +25,41 @@ export function WatchView() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
-
-  // ESTADO RESTAURADO Y DECLARADO CORRECTAMENTE
   const [matchPlayers, setMatchPlayers] = useState<PlayerData[]>([]);
+
+  // LÓGICA MAESTRA: Acumulador para retener la telemetría en vivo
+  const [liveTelemetry, setLiveTelemetry] = useState<
+    Record<string, { kda: string; items: string[] }>
+  >({});
 
   const { stats, updateServerTime } = useGameStats(
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
   );
+
+  // EFECTO: Escucha al WebSocket e inyecta los datos al acumulador sin borrarlos
+  useEffect(() => {
+    if (stats?.players && stats.players.length > 0) {
+      setLiveTelemetry((prev) => {
+        const next = { ...prev };
+        stats.players!.forEach((p) => {
+          if (p.id) {
+            const pId = String(p.id);
+            // Si el WS manda un KDA válido, lo actualizamos. Si no, conservamos el anterior.
+            const newKda = p.kda && p.kda !== "0/0/0" ? p.kda : next[pId]?.kda;
+            // Lo mismo con los items
+            const newItems =
+              p.items && p.items.length > 0 ? p.items : next[pId]?.items;
+
+            next[pId] = {
+              kda: newKda || "0/0/0",
+              items: newItems || [],
+            };
+          }
+        });
+        return next;
+      });
+    }
+  }, [stats?.players]);
 
   useEffect(() => {
     async function fetchMatchData() {
@@ -54,7 +82,6 @@ export function WatchView() {
           offset: matchData.start_time_offset,
         });
 
-        // LÓGICA RESTAURADA: Extraemos mapa de campeones Y los jugadores para el panel
         if (
           matchData.match_info &&
           matchData.match_info.info &&
@@ -88,9 +115,8 @@ export function WatchView() {
             });
           });
 
-          console.log("[HOOK DEBUG] Mapa de campeones reales:", map);
           setChampionMap(map);
-          setMatchPlayers(playersList); // SE USA AQUÍ PARA EVITAR EL ERROR DE TS
+          setMatchPlayers(playersList);
         }
       }
 
@@ -116,7 +142,6 @@ export function WatchView() {
   const toggleSaveMatch = async () => {
     if (!user || !matchId) return;
     setIsSaving(true);
-
     try {
       if (isSaved) {
         await supabase
@@ -151,6 +176,19 @@ export function WatchView() {
       </div>
     );
 
+  // FUSIÓN DE DATOS: Unimos los avatares estáticos con la telemetría dinámica retenida
+  const displayPlayers = matchPlayers.map((p) => ({
+    ...p,
+    kda:
+      liveTelemetry[p.id]?.kda && liveTelemetry[p.id].kda !== "0/0/0"
+        ? liveTelemetry[p.id].kda
+        : p.kda,
+    items:
+      liveTelemetry[p.id]?.items && liveTelemetry[p.id].items.length > 0
+        ? liveTelemetry[p.id].items
+        : p.items,
+  }));
+
   return (
     <main className="mx-auto max-w-7xl p-6">
       <div className="flex justify-between items-center mb-6">
@@ -175,7 +213,6 @@ export function WatchView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video w-full rounded-xl overflow-hidden bg-black ring-1 ring-slate-800 shadow-2xl relative">
             <VideoPlayer
@@ -185,30 +222,23 @@ export function WatchView() {
             />
           </div>
 
-          {/* RENDERIZADO SEGURO: PlayerPanel */}
-          {matchPlayers.length > 0 && (
-            <PlayerPanel
-              players={
-                stats?.players?.length === 10 ? stats.players : matchPlayers
-              }
-            />
+          {/* Renderizado con los datos fusionados (Nunca parpadeará a vacío) */}
+          {displayPlayers.length > 0 && (
+            <PlayerPanel players={displayPlayers} />
           )}
 
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />
         </div>
 
-        {/* COLUMNA DERECHA */}
         <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 max-h-[85vh] sticky top-20 flex flex-col">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest shrink-0">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
             Panel de Telemetría
           </h2>
-
           <div className="text-sm text-slate-400 shrink-0">
             <MatchScoreboard stats={stats} />
           </div>
-
           <div className="mt-6 flex-1 overflow-hidden flex flex-col">
             <h3 className="text-xs text-slate-500 uppercase tracking-widest mb-3 border-b border-slate-700/50 pb-2 shrink-0">
               Eventos en Tiempo Real
