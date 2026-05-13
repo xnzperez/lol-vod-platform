@@ -9,7 +9,6 @@ import { MatchTimeline } from "../features/player/MatchTimeline";
 import { MatchEventLog } from "../features/player/MatchEventLog";
 import { useAuth } from "../core/AuthContext";
 import { PlayerPanel } from "../features/player/PlayerPanel";
-import type { PlayerData } from "../core/decoder";
 
 export function WatchView() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -26,9 +25,6 @@ export function WatchView() {
 
   // Estado para almacenar el diccionario real de campeones
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
-
-  // Estado para los 10 jugadores (extraído de Supabase, no del WebSocket)
-  const [matchPlayers, setMatchPlayers] = useState<PlayerData[]>([]);
 
   const { stats, updateServerTime } = useGameStats(
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
@@ -55,46 +51,20 @@ export function WatchView() {
           offset: matchData.start_time_offset,
         });
 
-        // Procesamos el JSON de Riot para armar el mapa de campeones y la lista de jugadores
+        // Procesamos el JSON de Riot SOLO para armar el mapa de campeones (usado por notificaciones y logs)
         if (
           matchData.match_info &&
           matchData.match_info.info &&
           matchData.match_info.info.participants
         ) {
           const map: Record<number, string> = {};
-          const playersList: PlayerData[] = [];
 
           matchData.match_info.info.participants.forEach((p: any) => {
             map[p.participantId] = p.championName;
-
-            // Construimos el perfil exacto que exige PlayerData (con validación de nulos)
-            playersList.push({
-              id: p.participantId.toString(),
-              name:
-                p.riotIdGameName ||
-                p.summonerName ||
-                `Jugador ${p.participantId}`,
-              champion: p.championName,
-              // FIX: Forzamos a 0 si la propiedad no existe en el JSON
-              kda: `${p.kills ?? 0}/${p.deaths ?? 0}/${p.assists ?? 0}`,
-              // Riot entrega items en slots 0-6. Filtramos los vacíos (0 o nulos).
-              items: [
-                p.item0,
-                p.item1,
-                p.item2,
-                p.item3,
-                p.item4,
-                p.item5,
-                p.item6,
-              ]
-                .filter((itemId) => itemId && itemId > 0)
-                .map(String),
-            });
           });
 
           console.log("[HOOK DEBUG] Mapa de campeones reales:", map);
           setChampionMap(map);
-          setMatchPlayers(playersList);
         }
       }
 
