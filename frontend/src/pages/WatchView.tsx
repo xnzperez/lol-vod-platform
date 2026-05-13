@@ -36,30 +36,67 @@ export function WatchView() {
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
   );
 
-  // EFECTO: Escucha al WebSocket e inyecta los datos al acumulador sin borrarlos
+  // EFECTO CORREGIDO: Construir KDA e Inventario leyendo los EVENTOS de Go
   useEffect(() => {
-    if (stats?.players && stats.players.length > 0) {
-      setLiveTelemetry((prev) => {
-        const next = { ...prev };
-        stats.players!.forEach((p) => {
-          if (p.id) {
-            const pId = String(p.id);
-            // Si el WS manda un KDA válido, lo actualizamos. Si no, conservamos el anterior.
-            const newKda = p.kda && p.kda !== "0/0/0" ? p.kda : next[pId]?.kda;
-            // Lo mismo con los items
-            const newItems =
-              p.items && p.items.length > 0 ? p.items : next[pId]?.items;
+    if (stats?.events && Array.isArray(stats.events)) {
+      // 1. Inicializamos un tablero en blanco para los 10 jugadores
+      const currentTelemetry: Record<
+        string,
+        { kills: number; deaths: number; assists: number; items: string[] }
+      > = {};
 
-            next[pId] = {
-              kda: newKda || "0/0/0",
-              items: newItems || [],
-            };
+      for (let i = 1; i <= 10; i++) {
+        currentTelemetry[String(i)] = {
+          kills: 0,
+          deaths: 0,
+          assists: 0,
+          items: [],
+        };
+      }
+
+      // 2. Procesamos la historia exacta que manda Go en ese minuto
+      stats.events.forEach((ev: any) => {
+        if (ev.type === "CHAMPION_KILL") {
+          if (ev.killerId) currentTelemetry[String(ev.killerId)].kills += 1;
+          if (ev.victimId) currentTelemetry[String(ev.victimId)].deaths += 1;
+          // Si Go manda asistencias, se suman aquí
+          if (ev.assistantIds && Array.isArray(ev.assistantIds)) {
+            ev.assistantIds.forEach((aId: number) => {
+              currentTelemetry[String(aId)].assists += 1;
+            });
           }
-        });
-        return next;
+        } else if (ev.type === "ITEM_PURCHASED") {
+          if (ev.participantId && ev.itemId) {
+            currentTelemetry[String(ev.participantId)].items.push(
+              String(ev.itemId),
+            );
+          }
+        } else if (ev.type === "ITEM_SOLD" || ev.type === "ITEM_DESTROYED") {
+          if (ev.participantId && ev.itemId) {
+            const idx = currentTelemetry[
+              String(ev.participantId)
+            ].items.indexOf(String(ev.itemId));
+            if (idx > -1)
+              currentTelemetry[String(ev.participantId)].items.splice(idx, 1);
+          }
+        }
       });
+
+      // 3. Lo formateamos a texto (ej: "1/0/0") para que el PlayerPanel lo entienda
+      const newLiveTelemetry: Record<string, { kda: string; items: string[] }> =
+        {};
+      Object.keys(currentTelemetry).forEach((id) => {
+        const p = currentTelemetry[id];
+        newLiveTelemetry[id] = {
+          kda: `${p.kills}/${p.deaths}/${p.assists}`,
+          items: p.items,
+        };
+      });
+
+      // 4. Inyectamos los datos calculados a la UI
+      setLiveTelemetry(newLiveTelemetry);
     }
-  }, [stats?.players]);
+  }, [stats?.events]);
 
   useEffect(() => {
     async function fetchMatchData() {
