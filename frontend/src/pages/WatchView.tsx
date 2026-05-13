@@ -9,6 +9,7 @@ import { MatchTimeline } from "../features/player/MatchTimeline";
 import { MatchEventLog } from "../features/player/MatchEventLog";
 import { useAuth } from "../core/AuthContext";
 import { PlayerPanel } from "../features/player/PlayerPanel";
+import type { PlayerData } from "../core/decoder";
 
 export function WatchView() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -23,8 +24,10 @@ export function WatchView() {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Estado para almacenar el diccionario real de campeones
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
+
+  // ESTADO RESTAURADO Y DECLARADO CORRECTAMENTE
+  const [matchPlayers, setMatchPlayers] = useState<PlayerData[]>([]);
 
   const { stats, updateServerTime } = useGameStats(
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
@@ -51,20 +54,43 @@ export function WatchView() {
           offset: matchData.start_time_offset,
         });
 
-        // Procesamos el JSON de Riot SOLO para armar el mapa de campeones (usado por notificaciones y logs)
+        // LÓGICA RESTAURADA: Extraemos mapa de campeones Y los jugadores para el panel
         if (
           matchData.match_info &&
           matchData.match_info.info &&
           matchData.match_info.info.participants
         ) {
           const map: Record<number, string> = {};
+          const playersList: PlayerData[] = [];
 
           matchData.match_info.info.participants.forEach((p: any) => {
             map[p.participantId] = p.championName;
+
+            playersList.push({
+              id: p.participantId.toString(),
+              name:
+                p.riotIdGameName ||
+                p.summonerName ||
+                `Jugador ${p.participantId}`,
+              champion: p.championName,
+              kda: `${p.kills ?? 0}/${p.deaths ?? 0}/${p.assists ?? 0}`,
+              items: [
+                p.item0,
+                p.item1,
+                p.item2,
+                p.item3,
+                p.item4,
+                p.item5,
+                p.item6,
+              ]
+                .filter((itemId) => itemId && itemId > 0)
+                .map(String),
+            });
           });
 
           console.log("[HOOK DEBUG] Mapa de campeones reales:", map);
           setChampionMap(map);
+          setMatchPlayers(playersList); // SE USA AQUÍ PARA EVITAR EL ERROR DE TS
         }
       }
 
@@ -149,7 +175,7 @@ export function WatchView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* COLUMNA IZQUIERDA: Video y Logs (66%) */}
+        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video w-full rounded-xl overflow-hidden bg-black ring-1 ring-slate-800 shadow-2xl relative">
             <VideoPlayer
@@ -159,7 +185,7 @@ export function WatchView() {
             />
           </div>
 
-          {/* Panel de Jugadores con datos en tiempo real del WebSocket */}
+          {/* RENDERIZADO SEGURO: PlayerPanel */}
           {matchPlayers.length > 0 && (
             <PlayerPanel
               players={
@@ -167,11 +193,12 @@ export function WatchView() {
               }
             />
           )}
+
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />
         </div>
 
-        {/* COLUMNA DERECHA: Telemetría y Notificaciones (33%) */}
+        {/* COLUMNA DERECHA */}
         <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 max-h-[85vh] sticky top-20 flex flex-col">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest shrink-0">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
