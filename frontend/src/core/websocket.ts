@@ -26,6 +26,7 @@ export class VODWebSocketClient {
 
     this.ws.onmessage = (event: MessageEvent) => {
       try {
+        console.log("🔥 RAW WS JSON (LO QUE MANDA GO):", event.data);
         const rawData = JSON.parse(event.data);
 
         // Mapeo Estricto: Casteo explícito a String en el ID para no romper el acumulador
