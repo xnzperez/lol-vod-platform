@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "MCP Integration": {
+      "source": "anthropics/claude-code",
+      "sourceType": "github",
+      "skillPath": "plugins/plugin-dev/skills/mcp-integration/SKILL.md",
+      "computedHash": "99cfef49810cb80a39762a79dbb6a80d486ea56cfa1a81ed10cae0a5a296b496"
+    },
+    "frontend-design": {
+      "source": "anthropics/claude-code",
+      "sourceType": "github",
+      "skillPath": "plugins/frontend-design/skills/frontend-design/SKILL.md",
+      "computedHash": "e8118284a6365753790d44bb2758a6032b3af27fa84696428d9233f2be0f4e78"
+    },
+    "react-component-performance": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-component-performance/SKILL.md",
+      "computedHash": "a681eefba7180cde0bc6337101608bf5aec9a0e474f590e8d76bb1643ac64db4"
+    },
+    "theme-factory": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/theme-factory/SKILL.md",
+      "computedHash": "e9ec1fe85faa729e9f3d1731cd7e4e485f98c099ccc7c1c0d198f473aa4b654a"
+    }
+  }
+}

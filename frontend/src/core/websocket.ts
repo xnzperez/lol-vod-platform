@@ -6,6 +6,7 @@ type OnStatsUpdateCallback = (stats: MatchFrameData) => void;
 export class VODWebSocketClient {
   private ws: WebSocket | null = null;
   private onUpdate: OnStatsUpdateCallback | null = null;
+  private onErrorCb: ((err: string) => void) | null = null;
   private url: string;
 
   constructor(url: string) {
@@ -14,6 +15,10 @@ export class VODWebSocketClient {
 
   public subscribe(callback: OnStatsUpdateCallback): void {
     this.onUpdate = callback;
+  }
+
+  public onError(callback: (err: string) => void): void {
+    this.onErrorCb = callback;
   }
 
   public connect(): void {
@@ -69,12 +74,19 @@ export class VODWebSocketClient {
 
     this.ws.onclose = () => {
       console.warn("[WS] 🟡 Conexión perdida. Intentando reconectar...");
-      sileo.error({ title: "Se perdió la conexión con el servidor" });
+      if (this.onErrorCb) {
+        this.onErrorCb("Se perdió la conexión con el servidor");
+      } else {
+        sileo.error({ title: "Se perdió la conexión con el servidor" });
+      }
       setTimeout(() => this.connect(), 3000);
     };
 
     this.ws.onerror = (error: Event) => {
       console.error("[WS] 🔴 Error de red:", error);
+      if (this.onErrorCb) {
+        this.onErrorCb("Error de red en la conexión WebSocket");
+      }
     };
   }
 

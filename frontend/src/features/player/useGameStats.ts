@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { sileo } from "sileo";
 import { VODWebSocketClient } from "../../core/websocket";
-import type { PlayerData } from "../../core/decoder"; // NUEVO: Importamos el tipado de los jugadores
+import type { PlayerData } from "../../core/decoder";
 
-// NUEVO CONTRATO: Refleja el struct ProcessedFrame de Go + la data de los jugadores
 export interface MatchFrameData {
   minute: number;
   blueTeamGold: number;
@@ -11,7 +11,7 @@ export interface MatchFrameData {
   winProbability: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   events: any[] | null;
-  players?: PlayerData[]; // NUEVO: Agregado para que TypeScript lo reconozca y permita pasarlo al PlayerPanel
+  players?: PlayerData[];
 }
 
 export const useGameStats = (wsUrl: string) => {
@@ -19,32 +19,46 @@ export const useGameStats = (wsUrl: string) => {
   const wsClientRef = useRef<VODWebSocketClient | null>(null);
   const lastSentTimeRef = useRef<number>(-1);
 
-  // 1. Efecto de Conexión WebSocket
   useEffect(() => {
     wsClientRef.current = new VODWebSocketClient(wsUrl);
 
     wsClientRef.current.subscribe((newStats: MatchFrameData) => {
-      console.log("[HOOK DEBUG] Datos recibidos del cliente WS:", newStats);
-      setStats(newStats);
+      setStats((prevStats) => {
+        // Estabilidad de Estado: Evitar re-renderizar si los datos clave son idénticos
+        if (
+          prevStats &&
+          prevStats.minute === newStats.minute &&
+          prevStats.blueTeamGold === newStats.blueTeamGold &&
+          prevStats.redTeamGold === newStats.redTeamGold &&
+          prevStats.goldDifference === newStats.goldDifference &&
+          prevStats.winProbability === newStats.winProbability
+        ) {
+          return prevStats;
+        }
+        return newStats;
+      });
+    });
+
+    wsClientRef.current.onError((err: string) => {
+      sileo.error({ title: "¡SE PERDIÓ LA CONEXIÓN CON EL SERVIDOR!" });
     });
 
     wsClientRef.current.connect();
 
     return () => {
-      // Buena práctica: desconectar al desmontar para evitar memory leaks
+      // Cleanup para evitar memory leaks (asumiendo que se implemente close() en el futuro o si se requiere)
       if (wsClientRef.current) {
         // wsClientRef.current.disconnect();
       }
     };
   }, [wsUrl]);
 
-  // 2. Función para enviar el tiempo actual al backend
   const updateServerTime = (currentTime: number) => {
     if (!wsClientRef.current) return;
 
+    // Throttling: solo enviamos cuando cambia el segundo entero
     const currentSecond = Math.floor(currentTime);
 
-    // Throttling: 1 petición por segundo
     if (currentSecond !== lastSentTimeRef.current) {
       wsClientRef.current.sendMessage({ time: currentSecond });
       lastSentTimeRef.current = currentSecond;

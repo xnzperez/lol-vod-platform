@@ -5,6 +5,7 @@ import { DashboardView } from "./pages/DashboardView";
 import { useAuth } from "./core/AuthContext";
 import { supabase } from "./core/supabaseClient";
 import type { ReactNode } from "react";
+import { Toaster } from "sileo";
 
 // NUEVO: HOC para interceptar rutas que requieren autenticación
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -35,8 +36,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans selection:bg-blue-500/30">
-      <header className="sticky top-0 z-50 w-full border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur">
+    <div className="min-h-screen bg-[#0d1117] text-slate-200 font-sans selection:bg-blue-500/30">
+      <Toaster theme="dark" roundness={8} fill="#161b22" />
+      <header className="sticky top-0 z-50 w-full border-b border-slate-800 bg-[#0d1117]/80 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
             <div className="h-4 w-4 rounded-full bg-blue-500 animate-pulse" />

@@ -1,10 +1,25 @@
 /* Importación del motor de Tailwind v4 */
 @import "tailwindcss";
 
+:root {
+  /* Hextech Esports Palette */
+  --bg-main: #0d1117;
+  --bg-surface: #161b22;
+  --color-primary: #00A3FF;
+  --color-danger: #FF4655;
+  --color-gold: #C89B3C;
+
+  /* Sileo Customization - Game Announcement Style */
+  --sileo-state-success: oklch(0.65 0.25 210);
+  --sileo-state-error: oklch(0.6 0.25 25);
+  --sileo-width: 380px;
+  --sileo-duration: 400ms;
+}
+
 /* Opcional: Configuramos nuestro fondo oscuro global al estilo IDE */
 @layer base {
   body {
-    background-color: #0d1117;
+    background-color: var(--bg-main);
     color: #c9d1d9;
     margin: 0;
     padding: 0;
