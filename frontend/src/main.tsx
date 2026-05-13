@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./core/AuthContext";
 import App from "./App.tsx";
 import "./index.css";
+import { Toaster } from "sileo"; // NUEVO: Importamos el contenedor visual
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -11,6 +12,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <AuthProvider>
       <BrowserRouter>
         <App />
+        <Toaster position="top-center" richColors />
       </BrowserRouter>
     </AuthProvider>
   </React.StrictMode>,

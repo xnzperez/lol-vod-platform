@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../core/AuthContext";
 import { Link } from "react-router-dom";
 import { supabase } from "../core/supabaseClient";
+import { AddVodForm } from "../features/dashboard/AddVodForm";
 
 interface MatchRecord {
   match_id: string;
+  title?: string;
+  region?: string;
 }
 
 export function DashboardView() {
@@ -13,21 +16,21 @@ export function DashboardView() {
   const [savedMatchIds, setSavedMatchIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
-  // NUEVO: Estado para controlar qué pestaña se está viendo
-  const [activeTab, setActiveTab] = useState<"all" | "saved">("all");
+  // Estados de UI
+  const [activeTab, setActiveTab] = useState<"all" | "saved" | "add">("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [regionFilter, setRegionFilter] = useState("all");
 
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
       setLoading(true);
 
-      // 1. Consultar TODAS las partidas del sistema
       const { data: globalMatches, error: globalError } = await supabase
         .from("matches_data")
-        .select("match_id")
+        .select("match_id, title, region")
         .order("created_at", { ascending: false });
 
-      // 2. Consultar solo los IDs que el usuario ha guardado
       const { data: savedMatches, error: savedError } = await supabase
         .from("user_saved_matches")
         .select("match_id")
@@ -38,7 +41,6 @@ export function DashboardView() {
       }
 
       if (!savedError && savedMatches) {
-        // Usamos un Set para búsquedas instantáneas O(1)
         const ids = new Set(savedMatches.map((m) => m.match_id));
         setSavedMatchIds(ids);
       }
@@ -49,27 +51,58 @@ export function DashboardView() {
     fetchData();
   }, [user]);
 
-  // Filtramos la lista dependiendo de la pestaña activa
-  const displayedMatches =
-    activeTab === "all"
-      ? allMatches
-      : allMatches.filter((match) => savedMatchIds.has(match.match_id));
+  // Filtro combinado (Pestaña + Búsqueda + Región)
+  const displayedMatches = allMatches.filter((match) => {
+    const matchesTab = activeTab === "all" || savedMatchIds.has(match.match_id);
+    const matchesTitle = match.title
+      ? match.title.toLowerCase().includes(searchTerm.toLowerCase())
+      : match.match_id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRegion =
+      regionFilter === "all" || match.region === regionFilter;
+
+    return matchesTab && matchesTitle && matchesRegion;
+  });
 
   return (
     <main className="mx-auto max-w-7xl p-6 animate-fade-in">
-      <div className="mb-6 border-b border-slate-800 pb-6">
-        <h1 className="text-3xl font-bold text-white tracking-tight">
-          Panel de Control
-        </h1>
-        <p className="text-slate-400 mt-2">
-          Bienvenido,{" "}
-          <span className="text-blue-400 font-mono">{user?.email}</span>.
-          Selecciona un VOD procesado para analizar su telemetría.
-        </p>
+      <div className="mb-6 border-b border-slate-800 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">
+            Panel de Control
+          </h1>
+          <p className="text-slate-400 mt-2">
+            Bienvenido,{" "}
+            <span className="text-blue-400 font-mono">{user?.email}</span>.
+            Selecciona un VOD procesado para analizar su telemetría.
+          </p>
+        </div>
+
+        {/* Controles de Búsqueda y Filtro */}
+        {activeTab !== "add" && (
+          <div className="flex gap-2 w-full md:w-auto">
+            <input
+              type="text"
+              placeholder="Buscar VOD o ID..."
+              className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white focus:border-blue-500 outline-none flex-1 min-w-[200px]"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <select
+              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+            >
+              <option value="all">Todas las Regiones</option>
+              <option value="americas">Americas</option>
+              <option value="europe">Europe</option>
+              <option value="asia">Asia</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* NUEVO: Sistema de Pestañas (Tabs) */}
-      <div className="flex gap-4 mb-8">
+      {/* Sistema de Pestañas con la opción de Agregar */}
+      <div className="flex flex-wrap gap-4 mb-6">
         <button
           onClick={() => setActiveTab("all")}
           className={`px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all ${
@@ -90,16 +123,29 @@ export function DashboardView() {
         >
           ⭐ Mis Guardados ({savedMatchIds.size})
         </button>
+        <button
+          onClick={() => setActiveTab("add")}
+          className={`px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all ml-auto ${
+            activeTab === "add"
+              ? "bg-green-600 text-white shadow-lg shadow-green-500/20"
+              : "bg-slate-800/50 text-green-500 border border-green-900/50 hover:bg-slate-700 hover:text-green-400"
+          }`}
+        >
+          ➕ Indexar VOD
+        </button>
       </div>
 
-      {loading ? (
+      {/* RENDERIZADO CONDICIONAL: Muestra formulario o grilla dependiendo de la pestaña */}
+      {activeTab === "add" ? (
+        <AddVodForm />
+      ) : loading ? (
         <div className="text-slate-500 font-mono animate-pulse">
           Sincronizando base de datos...
         </div>
       ) : displayedMatches.length === 0 ? (
         <div className="text-slate-500 italic p-8 text-center bg-slate-800/20 rounded-xl border border-dashed border-slate-700">
           {activeTab === "all"
-            ? "No hay partidas procesadas en el servidor."
+            ? "No hay partidas que coincidan con tu búsqueda."
             : "No tienes partidas guardadas en tu perfil."}
         </div>
       ) : (
@@ -114,6 +160,13 @@ export function DashboardView() {
               >
                 <div className="aspect-video bg-black relative border-b border-slate-700">
                   <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/20 to-transparent"></div>
+
+                  {match.region && (
+                    <span className="absolute top-3 right-3 bg-blue-600/80 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter text-white shadow-sm backdrop-blur-sm z-10">
+                      {match.region}
+                    </span>
+                  )}
+
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-12 h-12 rounded-full bg-blue-600/80 group-hover:bg-blue-500 flex items-center justify-center transition-colors shadow-[0_0_15px_rgba(37,99,235,0.5)]">
                       <span className="text-white ml-1">▶</span>
@@ -123,7 +176,6 @@ export function DashboardView() {
 
                 <div className="p-5">
                   <div className="flex items-center justify-between mb-3">
-                    {/* Badge dinámico */}
                     {isSaved ? (
                       <span className="text-[10px] font-bold bg-green-900/50 border border-green-700/50 text-green-400 px-2 py-1 rounded uppercase tracking-widest flex items-center gap-1">
                         <span>⭐</span> Guardado
@@ -140,9 +192,9 @@ export function DashboardView() {
 
                   <h3
                     className="text-lg font-semibold text-white mb-4 truncate"
-                    title={match.match_id}
+                    title={match.title || match.match_id}
                   >
-                    {match.match_id}
+                    {match.title || match.match_id}
                   </h3>
 
                   <Link

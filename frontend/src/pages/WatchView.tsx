@@ -26,7 +26,7 @@ export function WatchView() {
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
 
   const { stats, updateServerTime } = useGameStats(
-    `ws://localhost:8080/ws/stats?match_id=${matchId}`,
+    `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
   );
 
   useEffect(() => {

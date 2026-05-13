@@ -18,16 +18,17 @@ func NewMatchService(rc *riot.RiotClient) *MatchService {
 	return &MatchService{RiotClient: rc}
 }
 
-func (s *MatchService) ProcessAndSaveMatch(region, matchID string) error {
+// ProcessAndSaveMatch orquesta el fetch a la API de Riot y la persistencia en base de datos.
+func (s *MatchService) ProcessAndSaveMatch(region, matchID, title, uploaderID, vodURL string, offset int) error {
 	log.Printf("[SERVICE] Procesando partida %s...", matchID)
 
-	// 1. Obtener la Timeline (Eventos y Oro - Ya lo tenías)
+	// 1. Obtener la Timeline
 	timeline, err := s.RiotClient.GetMatchTimeline(region, matchID)
 	if err != nil {
 		return fmt.Errorf("error obteniendo timeline: %v", err)
 	}
 
-	// 2. NUEVO: Obtener la Match Info (Metadata de jugadores y campeones)
+	// 2. Obtener la Match Info
 	matchInfo, err := s.RiotClient.GetMatch(region, matchID)
 	if err != nil {
 		return fmt.Errorf("error obteniendo match info: %v", err)
@@ -49,24 +50,30 @@ func (s *MatchService) ProcessAndSaveMatch(region, matchID string) error {
 		return fmt.Errorf("error serializando processed timeline: %v", err)
 	}
 
-	// 3. NUEVO: Serializar la Match Info
 	matchInfoJSON, err := json.Marshal(matchInfo)
 	if err != nil {
 		return fmt.Errorf("error serializando match info: %v", err)
 	}
 
-	// 4. ACTUALIZADO: Inyectar match_info en la consulta SQL
-	query := `INSERT INTO matches_data (match_id, region, duration_minutes, raw_timeline, processed_timeline, match_info) 
-	          VALUES ($1, $2, $3, $4, $5, $6) 
+	// 3. Consulta SQL expandida para incluir los nuevos campos del frontend
+	query := `INSERT INTO matches_data (match_id, region, duration_minutes, raw_timeline, processed_timeline, match_info, title, uploader_id, vod_url, start_time_offset) 
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
 	          ON CONFLICT (match_id) 
-	          DO UPDATE SET processed_timeline = EXCLUDED.processed_timeline, raw_timeline = EXCLUDED.raw_timeline, match_info = EXCLUDED.match_info`
+	          DO UPDATE SET 
+			  	processed_timeline = EXCLUDED.processed_timeline, 
+				raw_timeline = EXCLUDED.raw_timeline, 
+				match_info = EXCLUDED.match_info,
+				title = EXCLUDED.title,
+				uploader_id = EXCLUDED.uploader_id,
+				vod_url = EXCLUDED.vod_url,
+				start_time_offset = EXCLUDED.start_time_offset`
 
-	_, err = db.DB.Exec(query, matchID, region, len(timeline.Info.Frames), rawJSON, processedJSON, matchInfoJSON)
+	_, err = db.DB.Exec(query, matchID, region, len(timeline.Info.Frames), rawJSON, processedJSON, matchInfoJSON, title, uploaderID, vodURL, offset)
 	if err != nil {
 		return fmt.Errorf("error guardando en DB: %v", err)
 	}
 
-	log.Printf("[SERVICE] 🟢 Partida %s guardada/actualizada exitosamente con metadata de jugadores.", matchID)
+	log.Printf("[SERVICE] 🟢 Partida %s guardada/actualizada exitosamente con metadata y VOD info.", matchID)
 	return nil
 }
 
