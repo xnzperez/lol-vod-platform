@@ -67,7 +67,7 @@ export function WatchView() {
           matchData.match_info.info.participants.forEach((p: any) => {
             map[p.participantId] = p.championName;
 
-            // Construimos el perfil exacto que exige PlayerData
+            // Construimos el perfil exacto que exige PlayerData (con validación de nulos)
             playersList.push({
               id: p.participantId.toString(),
               name:
@@ -75,8 +75,9 @@ export function WatchView() {
                 p.summonerName ||
                 `Jugador ${p.participantId}`,
               champion: p.championName,
-              kda: `${p.kills}/${p.deaths}/${p.assists}`,
-              // Riot entrega items en slots 0-6. Filtramos los vacíos (0).
+              // FIX: Forzamos a 0 si la propiedad no existe en el JSON
+              kda: `${p.kills ?? 0}/${p.deaths ?? 0}/${p.assists ?? 0}`,
+              // Riot entrega items en slots 0-6. Filtramos los vacíos (0 o nulos).
               items: [
                 p.item0,
                 p.item1,
@@ -86,7 +87,7 @@ export function WatchView() {
                 p.item5,
                 p.item6,
               ]
-                .filter((itemId) => itemId > 0)
+                .filter((itemId) => itemId && itemId > 0)
                 .map(String),
             });
           });

@@ -1,5 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { getGameItem } from "../../core/riotDictionary"; // Eliminamos el mock de campeones
+// Importamos Data Dragon en lugar del viejo diccionario
+import {
+  getChampionImageUrl,
+  getItemImageUrlById,
+} from "../../core/datadragon";
 
 interface RawEvent {
   type: string;
@@ -14,18 +18,20 @@ interface GameStats {
   events: RawEvent[] | null;
 }
 
+// Actualizamos la interfaz para manejar datos que nos sirvan para renderizar imágenes
 interface UIEvent {
   id: string;
   time: string;
   side: string;
-  player: string;
+  playerChamp: string; // Nombre del campeón para buscar su imagen
   action: string;
-  target: string;
+  targetItem?: number; // ID del ítem
+  targetChamp?: string; // Nombre de la víctima
 }
 
 interface MatchEventLogProps {
   currentStats: GameStats | null;
-  championMap: Record<number, string>; // NUEVO: Recibimos el diccionario real
+  championMap: Record<number, string>;
 }
 
 const getSide = (id?: number) => (id && id <= 5 ? "blue" : "red");
@@ -48,27 +54,27 @@ export function MatchEventLog({
     const currentMinute = currentStats.minute;
 
     const newUIEvents: UIEvent[] = currentStats.events.map((raw, index) => {
-      let player = "-";
-      let target = "-";
+      let playerChamp = "-";
       let action = raw.type;
+      let targetChamp: string | undefined = undefined;
+      let targetItem: number | undefined = undefined;
       let side = "blue";
 
       if (raw.type === "CHAMPION_KILL") {
-        action = "Asesinato ⚔️";
-        // Usamos el mapa dinámico que viene de la base de datos
-        player = raw.killerId
-          ? championMap[raw.killerId] || `Jugador ${raw.killerId}`
+        action = "Asesinato";
+        playerChamp = raw.killerId
+          ? championMap[raw.killerId] || "Desconocido"
           : "-";
-        target = raw.victimId
-          ? championMap[raw.victimId] || `Jugador ${raw.victimId}`
-          : "-";
+        targetChamp = raw.victimId
+          ? championMap[raw.victimId] || "Desconocido"
+          : undefined;
         side = getSide(raw.killerId);
       } else if (raw.type === "ITEM_PURCHASED") {
-        action = "Compra 💰";
-        player = raw.participantId
-          ? championMap[raw.participantId] || `Jugador ${raw.participantId}`
+        action = "Compra";
+        playerChamp = raw.participantId
+          ? championMap[raw.participantId] || "Desconocido"
           : "-";
-        target = getGameItem(raw.itemId);
+        targetItem = raw.itemId;
         side = getSide(raw.participantId);
       }
 
@@ -76,9 +82,10 @@ export function MatchEventLog({
         id: `${currentMinute}-${raw.type}-${raw.killerId || raw.participantId}-${raw.victimId || raw.itemId}-${index}`,
         time: `Min ${currentMinute}`,
         side,
-        player,
+        playerChamp,
         action,
-        target,
+        targetItem,
+        targetChamp,
       };
     });
 
@@ -89,7 +96,7 @@ export function MatchEventLog({
       if (uniqueNewEvents.length === 0) return prev;
       return [...prev, ...uniqueNewEvents];
     });
-  }, [currentStats, championMap]); // Añadimos championMap a las dependencias
+  }, [currentStats, championMap]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -103,12 +110,13 @@ export function MatchEventLog({
         <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
         ⚔️ Registro de Eventos
       </h2>
+
       <div
-        className="relative overflow-y-auto rounded-lg border border-slate-700/50 flex-1"
+        className="relative overflow-y-auto rounded-lg border border-slate-700/50 flex-1 custom-scrollbar"
         ref={scrollRef}
       >
         <table className="w-full text-xs text-left text-slate-400">
-          <thead className="text-[10px] uppercase bg-slate-800/80 text-slate-300 sticky top-0 backdrop-blur-sm shadow-sm z-10">
+          <thead className="text-[10px] uppercase bg-slate-900/80 text-slate-300 sticky top-0 backdrop-blur-md shadow-sm z-10">
             <tr>
               <th scope="col" className="px-4 py-3">
                 Tiempo
@@ -119,7 +127,7 @@ export function MatchEventLog({
               <th scope="col" className="px-4 py-3">
                 Jugador
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-3 text-center">
                 Acción
               </th>
               <th scope="col" className="px-4 py-3">
@@ -141,22 +149,85 @@ export function MatchEventLog({
               eventLog.map((ev) => (
                 <tr
                   key={ev.id}
-                  className="border-b border-slate-800/50 hover:bg-slate-700/30 transition-colors"
+                  className="border-b border-slate-800/50 hover:bg-slate-800/80 transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono text-slate-300">
+                  {/* TIEMPO */}
+                  <td className="px-4 py-3 font-mono text-slate-300 whitespace-nowrap">
                     {ev.time}
                   </td>
-                  <td className="px-4 py-3 flex justify-center">
-                    <div
-                      className={`w-3 h-3 rounded-sm shadow-sm ${ev.side === "blue" ? "bg-blue-500 shadow-blue-500/50" : "bg-red-500 shadow-red-500/50"}`}
-                    ></div>
+
+                  {/* LADO (Punto de color) */}
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full shadow-sm ${ev.side === "blue" ? "bg-blue-500 shadow-blue-500/50" : "bg-red-500 shadow-red-500/50"}`}
+                      ></div>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 font-semibold text-slate-200">
-                    {ev.player}
+
+                  {/* JUGADOR (Avatar + Nombre) */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {ev.playerChamp !== "-" && (
+                        <img
+                          src={getChampionImageUrl(ev.playerChamp)}
+                          alt={ev.playerChamp}
+                          className="w-6 h-6 rounded-full border border-slate-600"
+                          onError={(e) =>
+                            (e.currentTarget.style.display = "none")
+                          }
+                        />
+                      )}
+                      <span className="font-semibold text-slate-200">
+                        {ev.playerChamp}
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3">{ev.action}</td>
-                  <td className="px-4 py-3 text-slate-300 font-mono">
-                    {ev.target}
+
+                  {/* ACCIÓN (Tag visual) */}
+                  <td className="px-4 py-3 text-center">
+                    <span
+                      className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        ev.action === "Asesinato"
+                          ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                          : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                      }`}
+                    >
+                      {ev.action}
+                    </span>
+                  </td>
+
+                  {/* OBJETIVO (Avatar Víctima o Icono de Ítem) */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {ev.action === "Asesinato" && ev.targetChamp && (
+                        <>
+                          <img
+                            src={getChampionImageUrl(ev.targetChamp)}
+                            alt={ev.targetChamp}
+                            className="w-6 h-6 rounded-full border border-slate-600 grayscale opacity-80"
+                            onError={(e) =>
+                              (e.currentTarget.style.display = "none")
+                            }
+                          />
+                          <span className="text-slate-400 font-mono">
+                            {ev.targetChamp}
+                          </span>
+                        </>
+                      )}
+                      {ev.action === "Compra" && ev.targetItem && (
+                        <>
+                          <img
+                            src={getItemImageUrlById(ev.targetItem)}
+                            alt={`Item ${ev.targetItem}`}
+                            className="w-6 h-6 rounded border border-slate-600 shadow-sm"
+                            onError={(e) =>
+                              (e.currentTarget.style.display = "none")
+                            }
+                          />
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
