@@ -186,20 +186,17 @@ export function WatchView() {
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />
 
-          {/* SECCIÓN ANTI-SPOILERS: Marcador Final */}
-          <div className="pt-4 mt-8 border-t border-slate-800/50 min-h-fit pb-20">
-            <button
-              onClick={() => setShowScoreboard(!showScoreboard)}
-              className="w-full py-4 flex items-center justify-center gap-2 bg-slate-900/40 hover:bg-slate-800/60 border border-slate-700/50 rounded-xl text-xs font-black text-slate-400 hover:text-white uppercase tracking-[0.2em] transition-all shadow-sm"
-            >
-              {showScoreboard
-                ? "Ocultar Marcador de la Partida"
-                : "👁️ Revelar Marcador Final (Spoilers)"}
-            </button>
+          {/* SECCIÓN DE MARCADOR FINAL (Renderizado Directo) */}
+          <div className="pt-4 mt-8 border-t border-slate-800/50 pb-20">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-4 px-2">
+              Estadísticas Finales de la Partida
+            </h2>
 
-            {showScoreboard && matchPlayers.length > 0 && (
-              <div className="w-full overflow-visible">
-                <FinalScoreboardPanel players={matchPlayers} />
+            {matchPlayers.length > 0 ? (
+              <FinalScoreboardPanel players={matchPlayers} />
+            ) : (
+              <div className="p-10 text-center text-slate-600 italic border border-dashed border-slate-800 rounded-xl">
+                Cargando alineaciones...
               </div>
             )}
           </div>
