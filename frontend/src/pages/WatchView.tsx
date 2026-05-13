@@ -155,10 +155,10 @@ export function WatchView() {
               startTimeOffset={videoConfig.offset}
               onTimeUpdate={updateServerTime}
             />
-
-            {/* Renderizado seguro sin casteo forzado de tipos */}
-            {stats && stats.players && <PlayerPanel players={stats.players} />}
           </div>
+
+          {/* Renderizado seguro sin casteo forzado de tipos */}
+          {stats && stats.players && <PlayerPanel players={stats.players} />}
 
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />

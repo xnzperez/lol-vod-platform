@@ -16,83 +16,98 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
     setExpandedPlayerId(expandedPlayerId === id ? null : id);
   };
 
-  if (!players || players.length === 0) return null;
+  if (!players || players.length !== 10) return null;
 
-  return (
-    <div className="absolute right-4 top-1/4 flex flex-col gap-3 z-50 pointer-events-auto">
-      {players.map((player) => {
-        const isExpanded = expandedPlayerId === player.id;
-        const isT1 = player.id.startsWith("t1"); // Detectamos el equipo
+  const blueTeam = players.slice(0, 5);
+  const redTeam = players.slice(5, 10);
 
-        return (
-          <div
-            key={player.id}
-            className="relative flex items-center justify-end"
-          >
-            {/* PANEL DE CRISTAL EXPANDIBLE */}
+  const renderTeam = (team: PlayerData[], isBlue: boolean) => (
+    <div
+      className={`flex flex-col gap-2 p-4 rounded-xl border ${isBlue ? "bg-blue-950/20 border-blue-900/50" : "bg-red-950/20 border-red-900/50"}`}
+    >
+      <h3
+        className={`text-xs font-bold uppercase tracking-widest mb-2 ${isBlue ? "text-blue-400" : "text-red-400"}`}
+      >
+        {isBlue ? "Equipo Azul" : "Equipo Rojo"}
+      </h3>
+      <div className="flex justify-between gap-2">
+        {team.map((player) => {
+          const isExpanded = expandedPlayerId === player.id;
+          return (
             <div
-              className={`absolute right-16 transition-all duration-300 ease-out origin-right overflow-hidden backdrop-blur-md bg-black/40 border border-white/10 rounded-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] ${
-                isExpanded
-                  ? "w-60 opacity-100 pointer-events-auto scale-100"
-                  : "w-0 opacity-0 pointer-events-none scale-95"
-              }`}
+              key={player.id}
+              className="relative flex flex-col items-center"
             >
-              <div className="p-3 w-60">
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-white tracking-wide">
-                      {player.name}
-                    </h3>
-                    <p className="text-[10px] text-gray-300 font-medium uppercase">
-                      {player.champion}
-                    </p>
-                  </div>
-                  <span className="text-xs font-mono font-black bg-black/60 border border-white/10 px-2 py-1 rounded text-white shadow-inner">
-                    {player.kda}
-                  </span>
-                </div>
+              {/* Avatar Clickable */}
+              <button
+                onClick={() => togglePlayer(player.id)}
+                className={`w-12 h-12 rounded-full p-0.5 transition-transform hover:scale-110 shadow-lg ${
+                  isExpanded
+                    ? isBlue
+                      ? "bg-blue-500"
+                      : "bg-red-500"
+                    : "bg-slate-700"
+                }`}
+              >
+                <img
+                  src={getChampionImageUrl(player.champion)}
+                  alt={player.champion}
+                  className="w-full h-full rounded-full object-cover border-2 border-slate-900"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              </button>
 
-                {/* Inventario Compacto */}
-                <div className="flex gap-1.5 mt-2">
-                  {player.items.map((item, index) => {
-                    const imageUrl = getItemImageUrlById(item);
-                    return imageUrl ? (
-                      <img
-                        key={index}
-                        src={imageUrl}
-                        alt={`Item ${item}`}
-                        className="w-7 h-7 rounded border border-white/20 shadow-md"
-                        onError={(e) =>
-                          (e.currentTarget.style.display = "none")
-                        }
-                      />
-                    ) : null;
-                  })}
+              {/* Panel Desplegable (Debajo del Avatar) */}
+              <div
+                className={`absolute top-14 w-48 z-10 transition-all duration-200 ease-out origin-top backdrop-blur-md bg-slate-900/95 border border-slate-700 rounded-lg shadow-xl overflow-hidden ${
+                  isExpanded
+                    ? "scale-100 opacity-100 pointer-events-auto"
+                    : "scale-95 opacity-0 pointer-events-none"
+                }`}
+              >
+                <div className="p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-white truncate w-24">
+                        {player.name}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 uppercase">
+                        {player.champion}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-white">
+                      {player.kda}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {player.items.map((item, index) => {
+                      const imageUrl = getItemImageUrlById(item);
+                      return imageUrl ? (
+                        <img
+                          key={index}
+                          src={imageUrl}
+                          alt="item"
+                          className="w-6 h-6 rounded border border-slate-700"
+                          onError={(e) =>
+                            (e.currentTarget.style.display = "none")
+                          }
+                        />
+                      ) : null;
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-            {/* AVATAR CIRCULAR SIEMPRE VISIBLE */}
-            <button
-              onClick={() => togglePlayer(player.id)}
-              className={`relative w-12 h-12 rounded-full p-0.5 transition-transform duration-200 hover:scale-110 z-10 shadow-lg ${
-                isExpanded
-                  ? isT1
-                    ? "bg-blue-500"
-                    : "bg-red-500"
-                  : "bg-white/20 backdrop-blur-sm"
-              }`}
-            >
-              <img
-                src={getChampionImageUrl(player.champion)}
-                alt={player.champion}
-                className="w-full h-full rounded-full object-cover border-2 border-black/80"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            </button>
-          </div>
-        );
-      })}
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+      {renderTeam(blueTeam, true)}
+      {renderTeam(redTeam, false)}
     </div>
   );
 };
