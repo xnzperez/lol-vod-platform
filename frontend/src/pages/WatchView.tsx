@@ -8,7 +8,8 @@ import { NotificationFeed } from "../features/player/NotificationFeed";
 import { MatchTimeline } from "../features/player/MatchTimeline";
 import { MatchEventLog } from "../features/player/MatchEventLog";
 import { useAuth } from "../core/AuthContext";
-import { PlayerPanel } from "../features/player/PlayerPanel";
+// IMPORTAMOS EL NUEVO PANEL ESTÁTICO
+import { FinalScoreboardPanel } from "../features/player/FinalScoreboardPanel";
 import type { PlayerData } from "../core/decoder";
 
 export function WatchView() {
@@ -27,76 +28,12 @@ export function WatchView() {
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
   const [matchPlayers, setMatchPlayers] = useState<PlayerData[]>([]);
 
-  // LÓGICA MAESTRA: Acumulador para retener la telemetría en vivo
-  const [liveTelemetry, setLiveTelemetry] = useState<
-    Record<string, { kda: string; items: string[] }>
-  >({});
+  // NUEVO: Estado para controlar el spoiler del marcador
+  const [showScoreboard, setShowScoreboard] = useState(false);
 
   const { stats, updateServerTime } = useGameStats(
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
   );
-
-  // EFECTO CORREGIDO: Construir KDA e Inventario leyendo los EVENTOS de Go
-  useEffect(() => {
-    if (stats?.events && Array.isArray(stats.events)) {
-      // 1. Inicializamos un tablero en blanco para los 10 jugadores
-      const currentTelemetry: Record<
-        string,
-        { kills: number; deaths: number; assists: number; items: string[] }
-      > = {};
-
-      for (let i = 1; i <= 10; i++) {
-        currentTelemetry[String(i)] = {
-          kills: 0,
-          deaths: 0,
-          assists: 0,
-          items: [],
-        };
-      }
-
-      // 2. Procesamos la historia exacta que manda Go en ese minuto
-      stats.events.forEach((ev: any) => {
-        if (ev.type === "CHAMPION_KILL") {
-          if (ev.killerId) currentTelemetry[String(ev.killerId)].kills += 1;
-          if (ev.victimId) currentTelemetry[String(ev.victimId)].deaths += 1;
-          // Si Go manda asistencias, se suman aquí
-          if (ev.assistantIds && Array.isArray(ev.assistantIds)) {
-            ev.assistantIds.forEach((aId: number) => {
-              currentTelemetry[String(aId)].assists += 1;
-            });
-          }
-        } else if (ev.type === "ITEM_PURCHASED") {
-          if (ev.participantId && ev.itemId) {
-            currentTelemetry[String(ev.participantId)].items.push(
-              String(ev.itemId),
-            );
-          }
-        } else if (ev.type === "ITEM_SOLD" || ev.type === "ITEM_DESTROYED") {
-          if (ev.participantId && ev.itemId) {
-            const idx = currentTelemetry[
-              String(ev.participantId)
-            ].items.indexOf(String(ev.itemId));
-            if (idx > -1)
-              currentTelemetry[String(ev.participantId)].items.splice(idx, 1);
-          }
-        }
-      });
-
-      // 3. Lo formateamos a texto (ej: "1/0/0") para que el PlayerPanel lo entienda
-      const newLiveTelemetry: Record<string, { kda: string; items: string[] }> =
-        {};
-      Object.keys(currentTelemetry).forEach((id) => {
-        const p = currentTelemetry[id];
-        newLiveTelemetry[id] = {
-          kda: `${p.kills}/${p.deaths}/${p.assists}`,
-          items: p.items,
-        };
-      });
-
-      // 4. Inyectamos los datos calculados a la UI
-      setLiveTelemetry(newLiveTelemetry);
-    }
-  }, [stats?.events]);
 
   useEffect(() => {
     async function fetchMatchData() {
@@ -213,19 +150,6 @@ export function WatchView() {
       </div>
     );
 
-  // FUSIÓN DE DATOS: Unimos los avatares estáticos con la telemetría dinámica retenida
-  const displayPlayers = matchPlayers.map((p) => ({
-    ...p,
-    kda:
-      liveTelemetry[p.id]?.kda && liveTelemetry[p.id].kda !== "0/0/0"
-        ? liveTelemetry[p.id].kda
-        : p.kda,
-    items:
-      liveTelemetry[p.id]?.items && liveTelemetry[p.id].items.length > 0
-        ? liveTelemetry[p.id].items
-        : p.items,
-  }));
-
   return (
     <main className="mx-auto max-w-7xl p-6">
       <div className="flex justify-between items-center mb-6">
@@ -259,13 +183,27 @@ export function WatchView() {
             />
           </div>
 
-          {/* Renderizado con los datos fusionados (Nunca parpadeará a vacío) */}
-          {displayPlayers.length > 0 && (
-            <PlayerPanel players={displayPlayers} />
-          )}
-
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />
+
+          {/* SECCIÓN ANTI-SPOILERS: Marcador Final */}
+          <div className="pt-4 mt-8 border-t border-slate-800/50">
+            <button
+              onClick={() => setShowScoreboard(!showScoreboard)}
+              className="w-full py-4 flex items-center justify-center gap-2 bg-slate-900/40 hover:bg-slate-800/60 border border-slate-700/50 rounded-xl text-xs font-black text-slate-400 hover:text-white uppercase tracking-[0.2em] transition-all shadow-sm"
+            >
+              {showScoreboard
+                ? "Ocultar Marcador de la Partida"
+                : "👁️ Revelar Marcador Final (Spoilers)"}
+            </button>
+
+            {/* Solo se renderiza si el usuario hizo clic y los jugadores existen */}
+            {showScoreboard && matchPlayers.length > 0 && (
+              <div className="animate-fade-in-down">
+                <FinalScoreboardPanel players={matchPlayers} />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 max-h-[85vh] sticky top-20 flex flex-col">
