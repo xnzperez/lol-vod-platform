@@ -9,95 +9,108 @@ interface FinalScoreboardProps {
 }
 
 export function FinalScoreboardPanel({ players }: FinalScoreboardProps) {
-  if (!players || players.length !== 10) return null;
+  // Verificación de seguridad
+  if (!players || players.length === 0) {
+    return (
+      <div className="p-4 text-center text-slate-500 italic border border-dashed border-slate-700 rounded-xl mt-4">
+        No hay datos de jugadores disponibles para este VOD.
+      </div>
+    );
+  }
 
   const blueTeam = players.slice(0, 5);
   const redTeam = players.slice(5, 10);
-
-  // Mantenemos el array para asegurar las 5 posiciones de los roles
   const roles = ["TOP", "JGL", "MID", "ADC", "SUP"];
 
   return (
-    <div className="w-full bg-slate-900/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl mt-6">
-      <div className="flex text-xs font-black uppercase tracking-[0.2em] bg-black/60 border-b border-slate-700/50">
-        <div className="flex-1 p-3 text-blue-400 text-center border-r border-slate-700/50">
-          Equipo Azul
+    <div className="w-full bg-slate-900/90 border border-slate-700 rounded-xl overflow-hidden shadow-2xl mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
+      {/* Encabezado de Equipos */}
+      <div className="flex text-[10px] font-black uppercase tracking-[0.3em] bg-black/40 border-b border-slate-800">
+        <div className="flex-1 p-3 text-blue-400 text-center border-r border-slate-800">
+          Blue Side
         </div>
-        <div className="flex-1 p-3 text-red-400 text-center">Equipo Rojo</div>
+        <div className="flex-1 p-3 text-red-400 text-center">Red Side</div>
       </div>
 
       <div className="flex flex-col">
-        {/* Cambiamos 'role' por '_' para evitar el error TS6133 */}
         {roles.map((_, idx) => {
-          const bluePlayer = blueTeam[idx];
-          const redPlayer = redTeam[idx];
+          const blueP = blueTeam[idx];
+          const redP = redTeam[idx];
 
           return (
             <div
               key={idx}
-              className="flex border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
+              className="flex border-b border-slate-800/50 last:border-0"
             >
-              {/* JUGADOR AZUL */}
-              <div className="flex-1 flex items-center gap-3 p-2 border-r border-slate-800/50">
-                <img
-                  src={getChampionImageUrl(bluePlayer.champion)}
-                  alt={bluePlayer.champion}
-                  className="w-10 h-10 rounded border border-blue-900 shadow-sm"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-                <div className="flex flex-col flex-1">
-                  <div className="flex justify-between items-center w-full">
-                    <span className="font-bold text-slate-200 text-sm">
-                      {bluePlayer.name}
+              {/* BLOQUE AZUL */}
+              <div className="flex-1 flex items-center gap-3 p-3 border-r border-slate-800/50 bg-blue-500/5">
+                <div className="relative shrink-0">
+                  <img
+                    src={blueP ? getChampionImageUrl(blueP.champion) : ""}
+                    className="w-12 h-12 rounded-lg border border-blue-500/30 object-cover"
+                    alt="champ"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="truncate font-bold text-slate-200 text-sm">
+                      {blueP?.name || "Desconocido"}
                     </span>
-                    <span className="font-mono text-xs text-slate-400">
-                      {bluePlayer.kda}
+                    <span className="font-mono text-[11px] text-blue-400 font-bold ml-2">
+                      {blueP?.kda}
                     </span>
                   </div>
-                  <div className="flex gap-1 mt-1">
-                    {bluePlayer.items.map((item, i) => (
-                      <img
+                  <div className="flex gap-1">
+                    {blueP?.items.map((itemId, i) => (
+                      <div
                         key={i}
-                        src={getItemImageUrlById(item)}
-                        alt="item"
-                        className="w-6 h-6 rounded bg-slate-800 border border-slate-700"
-                        onError={(e) =>
-                          (e.currentTarget.style.display = "none")
-                        }
-                      />
+                        className="w-7 h-7 bg-black/40 rounded border border-slate-700 overflow-hidden"
+                      >
+                        <img
+                          src={getItemImageUrlById(itemId)}
+                          className="w-full h-full object-cover"
+                          onError={(e) =>
+                            (e.currentTarget.style.visibility = "hidden")
+                          }
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
               </div>
 
-              {/* JUGADOR ROJO */}
-              <div className="flex-1 flex items-center gap-3 p-2 flex-row-reverse text-right">
-                <img
-                  src={getChampionImageUrl(redPlayer.champion)}
-                  alt={redPlayer.champion}
-                  className="w-10 h-10 rounded border border-red-900 shadow-sm"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-                <div className="flex flex-col flex-1 items-end">
-                  <div className="flex justify-between items-center w-full flex-row-reverse">
-                    <span className="font-bold text-slate-200 text-sm">
-                      {redPlayer.name}
+              {/* BLOQUE ROJO */}
+              <div className="flex-1 flex items-center gap-3 p-3 flex-row-reverse text-right bg-red-500/5">
+                <div className="relative shrink-0">
+                  <img
+                    src={redP ? getChampionImageUrl(redP.champion) : ""}
+                    className="w-12 h-12 rounded-lg border border-red-500/30 object-cover"
+                    alt="champ"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1 flex-row-reverse">
+                    <span className="truncate font-bold text-slate-200 text-sm">
+                      {redP?.name || "Desconocido"}
                     </span>
-                    <span className="font-mono text-xs text-slate-400">
-                      {redPlayer.kda}
+                    <span className="font-mono text-[11px] text-red-400 font-bold mr-2">
+                      {redP?.kda}
                     </span>
                   </div>
-                  <div className="flex gap-1 mt-1 flex-row-reverse">
-                    {redPlayer.items.map((item, i) => (
-                      <img
+                  <div className="flex gap-1 flex-row-reverse">
+                    {redP?.items.map((itemId, i) => (
+                      <div
                         key={i}
-                        src={getItemImageUrlById(item)}
-                        alt="item"
-                        className="w-6 h-6 rounded bg-slate-800 border border-slate-700"
-                        onError={(e) =>
-                          (e.currentTarget.style.display = "none")
-                        }
-                      />
+                        className="w-7 h-7 bg-black/40 rounded border border-slate-700 overflow-hidden"
+                      >
+                        <img
+                          src={getItemImageUrlById(itemId)}
+                          className="w-full h-full object-cover"
+                          onError={(e) =>
+                            (e.currentTarget.style.visibility = "hidden")
+                          }
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>

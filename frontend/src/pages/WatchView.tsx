@@ -187,7 +187,7 @@ export function WatchView() {
           <MatchEventLog currentStats={stats} championMap={championMap} />
 
           {/* SECCIÓN ANTI-SPOILERS: Marcador Final */}
-          <div className="pt-4 mt-8 border-t border-slate-800/50">
+          <div className="pt-4 mt-8 border-t border-slate-800/50 min-h-fit pb-20">
             <button
               onClick={() => setShowScoreboard(!showScoreboard)}
               className="w-full py-4 flex items-center justify-center gap-2 bg-slate-900/40 hover:bg-slate-800/60 border border-slate-700/50 rounded-xl text-xs font-black text-slate-400 hover:text-white uppercase tracking-[0.2em] transition-all shadow-sm"
@@ -197,9 +197,8 @@ export function WatchView() {
                 : "👁️ Revelar Marcador Final (Spoilers)"}
             </button>
 
-            {/* Solo se renderiza si el usuario hizo clic y los jugadores existen */}
             {showScoreboard && matchPlayers.length > 0 && (
-              <div className="animate-fade-in-down">
+              <div className="w-full overflow-visible">
                 <FinalScoreboardPanel players={matchPlayers} />
               </div>
             )}
