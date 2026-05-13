@@ -13,11 +13,32 @@
   <link rel="preconnect" href="https://ddragon.leagueoflegends.com" crossorigin />
   <link rel="dns-prefetch" href="https://ddragon.leagueoflegends.com" />
 
+  <style>
+    body {
+      background-color: #0d1117;
+      margin: 0;
+    }
+
+    .preloader {
+      color: #00A3FF;
+      font-family: monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+  </style>
+
   <title>LoL VOD Platform | Analytics & Strategy</title>
 </head>
 
 <body class="bg-[#0d1117]">
-  <div id="root"></div>
+  <div id="root">
+    <div class="preloader">Iniciando Hextech Engine...</div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
