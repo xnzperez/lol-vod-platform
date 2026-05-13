@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  getChampionImageUrl,
+  getItemImageUrlById,
+} from "../../core/datadragon";
 
-// Replicamos la estructura del DTO que configuramos en Go
 interface EventDTO {
   type: string;
   participantId?: number;
@@ -11,19 +14,21 @@ interface EventDTO {
 
 interface NotificationFeedProps {
   events: EventDTO[];
+  championMap: Record<number, string>;
 }
 
-export function NotificationFeed({ events }: NotificationFeedProps) {
+export function NotificationFeed({
+  events,
+  championMap,
+}: NotificationFeedProps) {
   const [activeNotifications, setActiveNotifications] = useState<EventDTO[]>(
     [],
   );
 
-  // Efecto para actualizar el feed cuando llegan nuevos eventos del WebSocket
   useEffect(() => {
     if (events && events.length > 0) {
       setActiveNotifications(events);
 
-      // Auto-limpieza: las notificaciones desaparecen después de 5 segundos
       const timer = setTimeout(() => {
         setActiveNotifications([]);
       }, 5000);
@@ -35,44 +40,76 @@ export function NotificationFeed({ events }: NotificationFeedProps) {
   if (activeNotifications.length === 0) return null;
 
   return (
-    <div className="absolute top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none w-64">
+    <div className="flex flex-col gap-2 w-full">
       {activeNotifications.map((evt, idx) => {
-        if (evt.type === "ITEM_PURCHASED") {
+        // 1. EVENTO DE COMPRA
+        if (evt.type === "ITEM_PURCHASED" && evt.participantId && evt.itemId) {
+          const champName = championMap[evt.participantId] || "Desconocido";
+
           return (
             <div
               key={idx}
-              className="bg-slate-900/90 border border-slate-700 p-3 rounded-lg shadow-xl backdrop-blur-md animate-fade-in-right flex items-center gap-3"
+              className="bg-slate-900/60 border border-slate-700/50 p-2 rounded-lg flex items-center gap-3 animate-fade-in-right"
             >
-              <div className="w-8 h-8 bg-amber-500/20 rounded flex items-center justify-center border border-amber-500/50">
-                <span className="text-xs">🛒</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400 font-mono">
-                  Jugador {evt.participantId}
+              <img
+                src={getChampionImageUrl(champName)}
+                alt={champName}
+                className="w-8 h-8 rounded-full border border-slate-600"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <span className="text-xs text-slate-300 font-bold truncate">
+                  {champName}
                 </span>
-                <span className="text-sm text-white font-semibold">
-                  Compró Item {evt.itemId}
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+                  Compró un objeto
                 </span>
               </div>
+              <img
+                src={getItemImageUrlById(evt.itemId)}
+                alt={`Item ${evt.itemId}`}
+                className="w-8 h-8 rounded border border-amber-500/30"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
             </div>
           );
         }
 
-        if (evt.type === "CHAMPION_KILL") {
+        // 2. EVENTO DE ASESINATO
+        if (evt.type === "CHAMPION_KILL" && evt.killerId && evt.victimId) {
+          const killerName = championMap[evt.killerId] || "Desconocido";
+          const victimName = championMap[evt.victimId] || "Desconocido";
+
           return (
             <div
               key={idx}
-              className="bg-red-900/90 border border-red-700 p-3 rounded-lg shadow-xl backdrop-blur-md animate-fade-in-right flex items-center gap-3"
+              className="bg-red-950/40 border border-red-900/50 p-2 rounded-lg flex items-center justify-between animate-fade-in-right"
             >
-              <div className="w-8 h-8 bg-red-500/20 rounded flex items-center justify-center border border-red-500/50">
-                <span className="text-xs">⚔️</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400 font-mono">
-                  Asesinato
+              <div className="flex flex-col items-center gap-1 w-1/3">
+                <img
+                  src={getChampionImageUrl(killerName)}
+                  alt={killerName}
+                  className="w-8 h-8 rounded-full border-2 border-red-500"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+                <span className="text-[10px] text-slate-300 font-mono truncate w-full text-center">
+                  {killerName}
                 </span>
-                <span className="text-sm text-white font-semibold">
-                  {evt.killerId} ➔ {evt.victimId}
+              </div>
+
+              <div className="flex flex-col items-center w-1/3">
+                <span className="text-xs text-red-500 font-bold">⚔️ KILL</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-1 w-1/3">
+                <img
+                  src={getChampionImageUrl(victimName)}
+                  alt={victimName}
+                  className="w-8 h-8 rounded-full border border-slate-600 grayscale opacity-75"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+                <span className="text-[10px] text-slate-500 font-mono truncate w-full text-center">
+                  {victimName}
                 </span>
               </div>
             </div>

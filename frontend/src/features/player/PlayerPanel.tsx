@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { PlayerData } from "../../core/decoder";
-import { getChampionImageUrl, getItemImageUrl } from "../../core/datadragon";
+import {
+  getChampionImageUrl,
+  getItemImageUrlById,
+} from "../../core/datadragon";
 
 interface PlayerPanelProps {
   players: PlayerData[];
@@ -16,18 +19,17 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
   if (!players || players.length === 0) return null;
 
   return (
-    // Posicionamos el contenedor a la derecha, centrado verticalmente
     <div className="absolute right-4 top-1/4 flex flex-col gap-3 z-50 pointer-events-auto">
       {players.map((player) => {
         const isExpanded = expandedPlayerId === player.id;
-        const isT1 = player.id.startsWith("t1"); // Detectamos el equipo para el color
+        const isT1 = player.id.startsWith("t1"); // Detectamos el equipo
 
         return (
           <div
             key={player.id}
             className="relative flex items-center justify-end"
           >
-            {/* PANEL DE CRISTAL EXPANDIBLE (Aparece hacia la izquierda del avatar) */}
+            {/* PANEL DE CRISTAL EXPANDIBLE */}
             <div
               className={`absolute right-16 transition-all duration-300 ease-out origin-right overflow-hidden backdrop-blur-md bg-black/40 border border-white/10 rounded-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] ${
                 isExpanded
@@ -53,13 +55,16 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
                 {/* Inventario Compacto */}
                 <div className="flex gap-1.5 mt-2">
                   {player.items.map((item, index) => {
-                    const imageUrl = getItemImageUrl(item);
+                    const imageUrl = getItemImageUrlById(item);
                     return imageUrl ? (
                       <img
                         key={index}
                         src={imageUrl}
-                        alt={item}
+                        alt={`Item ${item}`}
                         className="w-7 h-7 rounded border border-white/20 shadow-md"
+                        onError={(e) =>
+                          (e.currentTarget.style.display = "none")
+                        }
                       />
                     ) : null;
                   })}
@@ -67,7 +72,7 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
               </div>
             </div>
 
-            {/* AVATAR CIRCULAR SIEMPRE VISIBLE (El botón disparador) */}
+            {/* AVATAR CIRCULAR SIEMPRE VISIBLE */}
             <button
               onClick={() => togglePlayer(player.id)}
               className={`relative w-12 h-12 rounded-full p-0.5 transition-transform duration-200 hover:scale-110 z-10 shadow-lg ${

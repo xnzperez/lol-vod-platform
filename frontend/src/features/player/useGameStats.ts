@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { VODWebSocketClient } from "../../core/websocket";
+import type { PlayerData } from "../../core/decoder"; // NUEVO: Importamos el tipado de los jugadores
 
-// NUEVO CONTRATO: Refleja el struct ProcessedFrame de Go
+// NUEVO CONTRATO: Refleja el struct ProcessedFrame de Go + la data de los jugadores
 export interface MatchFrameData {
   minute: number;
   blueTeamGold: number;
@@ -10,6 +11,7 @@ export interface MatchFrameData {
   winProbability: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   events: any[] | null;
+  players?: PlayerData[]; // NUEVO: Agregado para que TypeScript lo reconozca y permita pasarlo al PlayerPanel
 }
 
 export const useGameStats = (wsUrl: string) => {

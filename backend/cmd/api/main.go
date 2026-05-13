@@ -26,6 +26,17 @@ type AddMatchRequest struct {
 	UploaderID string `json:"uploaderId"`
 }
 
+// MatchSummary define la estructura de respuesta para el buscador de partidas
+type MatchSummary struct {
+	MatchID  string `json:"matchId"`
+	Champion string `json:"champion"`
+	Kills    int    `json:"kills"`
+	Deaths   int    `json:"deaths"`
+	Assists  int    `json:"assists"`
+	Win      bool   `json:"win"`
+	GameMode string `json:"gameMode"`
+}
+
 func main() {
 	// 1. INICIALIZAR LA BASE DE DATOS
 	if err := db.InitDB(); err != nil {
@@ -140,22 +151,25 @@ func main() {
 		tagLine := r.URL.Query().Get("tag")
 		region := r.URL.Query().Get("region")
 
-		if gameName == "" || tagLine == "" {
+		log.Printf("[SEARCH] 🔍 Buscando: %s#%s en región: %s", gameName, tagLine, region)
+
+		if gameName == "" || tagLine == "" || region == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Faltan name o tag"})
+			json.NewEncoder(w).Encode(map[string]string{"error": "Faltan name, tag o region"})
 			return
 		}
 
-		apiKey := os.Getenv("RIOT_API_KEY") // Asegúrate de que esta variable exista
+		apiKey := os.Getenv("RIOT_API_KEY")
 		client := &http.Client{}
 
-		// 1. Obtener PUUID desde Account-V1 (Americas)
+		// 1. Obtener PUUID
 		accountURL := fmt.Sprintf("https://%s.api.riotgames.com/riot/account/v1/accounts/by-riot-id/%s/%s", region, gameName, tagLine)
 		reqAcc, _ := http.NewRequest("GET", accountURL, nil)
 		reqAcc.Header.Set("X-Riot-Token", apiKey)
 
 		respAcc, err := client.Do(reqAcc)
 		if err != nil || respAcc.StatusCode != 200 {
+			log.Printf("[SEARCH] ❌ Jugador no encontrado: %s#%s en %s", gameName, tagLine, region)
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Jugador no encontrado en Riot Games"})
 			return
@@ -167,7 +181,7 @@ func main() {
 		}
 		json.NewDecoder(respAcc.Body).Decode(&accountData)
 
-		// 2. Obtener los últimos 5 Match IDs usando el PUUID
+		// 2. Obtener Match IDs
 		matchesURL := fmt.Sprintf("https://%s.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?start=0&count=5", region, accountData.Puuid)
 		reqMatch, _ := http.NewRequest("GET", matchesURL, nil)
 		reqMatch.Header.Set("X-Riot-Token", apiKey)
@@ -175,7 +189,6 @@ func main() {
 		respMatch, err := client.Do(reqMatch)
 		if err != nil || respMatch.StatusCode != 200 {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Error obteniendo el historial de partidas"})
 			return
 		}
 
@@ -183,28 +196,19 @@ func main() {
 		json.NewDecoder(respMatch.Body).Decode(&matchIDs)
 		respMatch.Body.Close()
 
-		// NUEVO: 3. Estructura para el resumen de la partida
-		type MatchSummary struct {
-			MatchID  string `json:"matchId"`
-			Champion string `json:"champion"`
-			Kills    int    `json:"kills"`
-			Deaths   int    `json:"deaths"`
-			Assists  int    `json:"assists"`
-			Win      bool   `json:"win"`
-			GameMode string `json:"gameMode"`
-		}
+		// 3. Resumen de partidas (Usamos el struct global)
+		summaries := []MatchSummary{}
 
-		var summaries []MatchSummary
-
-		// NUEVO: 4. Consultar los detalles de cada partida y extraer los datos del jugador
 		for _, matchID := range matchIDs {
-			detailURL := fmt.Sprintf("https://americas.api.riotgames.com/lol/match/v5/matches/%s", matchID)
+			// USANDO LA REGIÓN DINÁMICA CORRECTAMENTE
+			detailURL := fmt.Sprintf("https://%s.api.riotgames.com/lol/match/v5/matches/%s", region, matchID)
+
 			reqDetail, _ := http.NewRequest("GET", detailURL, nil)
 			reqDetail.Header.Set("X-Riot-Token", apiKey)
 
 			respDetail, err := client.Do(reqDetail)
 			if err != nil || respDetail.StatusCode != 200 {
-				continue // Si una partida falla, la saltamos para no romper el ciclo
+				continue
 			}
 
 			var matchData struct {
@@ -224,7 +228,6 @@ func main() {
 			json.NewDecoder(respDetail.Body).Decode(&matchData)
 			respDetail.Body.Close()
 
-			// Buscamos cuál de los 10 jugadores es el que estamos buscando
 			for _, p := range matchData.Info.Participants {
 				if p.Puuid == accountData.Puuid {
 					summaries = append(summaries, MatchSummary{
@@ -236,12 +239,12 @@ func main() {
 						Win:      p.Win,
 						GameMode: matchData.Info.GameMode,
 					})
+					log.Printf("[SEARCH] ✨ Detalle procesado para %s", matchID)
 					break
 				}
 			}
 		}
 
-		// Devolvemos la lista de resúmenes estructurados al frontend
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"matches": summaries,
 		})
@@ -256,7 +259,7 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Println("Iniciando servidor HLS/WS en http://localhost:8080...")
+	log.Println("Servidor iniciado en puerto 8080 (Producción)...")
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Error crítico en el servidor: %v", err)
 	}

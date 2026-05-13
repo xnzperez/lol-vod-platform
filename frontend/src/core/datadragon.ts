@@ -42,3 +42,12 @@ export const getItemImageUrl = (itemName: string): string | null => {
 
   return `${BASE_URL}/item/${itemId}.png`;
 };
+
+/**
+ * Retorna la URL oficial de la imagen del Objeto usando su ID numérico.
+ * Ideal para eventos crudos de la API de Riot.
+ * @param itemId ID del objeto (Ej. 1052)
+ */
+export const getItemImageUrlById = (itemId: number | string): string => {
+  return `${BASE_URL}/item/${itemId}.png`;
+};

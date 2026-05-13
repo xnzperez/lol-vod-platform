@@ -8,6 +8,7 @@ import { NotificationFeed } from "../features/player/NotificationFeed";
 import { MatchTimeline } from "../features/player/MatchTimeline";
 import { MatchEventLog } from "../features/player/MatchEventLog";
 import { useAuth } from "../core/AuthContext";
+import { PlayerPanel } from "../features/player/PlayerPanel";
 
 export function WatchView() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -22,7 +23,7 @@ export function WatchView() {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // NUEVO: Estado para almacenar el diccionario real de campeones
+  // Estado para almacenar el diccionario real de campeones
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
 
   const { stats, updateServerTime } = useGameStats(
@@ -33,7 +34,6 @@ export function WatchView() {
     async function fetchMatchData() {
       setLoading(true);
 
-      // NUEVO: Agregamos match_info a la consulta de Supabase
       const { data: matchData, error: matchError } = await supabase
         .from("matches_data")
         .select("vod_url, start_time_offset, match_info")
@@ -51,7 +51,7 @@ export function WatchView() {
           offset: matchData.start_time_offset,
         });
 
-        // NUEVO: Procesamos el JSON de Riot para armar el mapa de campeones
+        // Procesamos el JSON de Riot para armar el mapa de campeones
         if (
           matchData.match_info &&
           matchData.match_info.info &&
@@ -147,31 +147,50 @@ export function WatchView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* COLUMNA IZQUIERDA: Video y Logs (66%) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video w-full rounded-xl overflow-hidden bg-black ring-1 ring-slate-800 shadow-2xl relative">
-            {stats && stats.events && (
-              <NotificationFeed events={stats.events} />
-            )}
             <VideoPlayer
               videoId={videoConfig.id}
               startTimeOffset={videoConfig.offset}
               onTimeUpdate={updateServerTime}
             />
+
+            {/* Renderizado seguro sin casteo forzado de tipos */}
+            {stats && stats.players && <PlayerPanel players={stats.players} />}
           </div>
 
           <MatchTimeline currentStats={stats} />
-
-          {/* En el próximo paso inyectaremos el championMap aquí */}
           <MatchEventLog currentStats={stats} championMap={championMap} />
         </div>
 
-        <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 h-[600px] sticky top-20 overflow-y-auto">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest">
+        {/* COLUMNA DERECHA: Telemetría y Notificaciones (33%) */}
+        <div className="bg-slate-800/30 rounded-xl border border-slate-800 p-5 max-h-[85vh] sticky top-20 flex flex-col">
+          <h2 className="font-semibold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-widest shrink-0">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
             Panel de Telemetría
           </h2>
-          <div className="text-sm text-slate-400">
+
+          <div className="text-sm text-slate-400 shrink-0">
             <MatchScoreboard stats={stats} />
+          </div>
+
+          <div className="mt-6 flex-1 overflow-hidden flex flex-col">
+            <h3 className="text-xs text-slate-500 uppercase tracking-widest mb-3 border-b border-slate-700/50 pb-2 shrink-0">
+              Eventos en Tiempo Real
+            </h3>
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              {stats && stats.events ? (
+                <NotificationFeed
+                  events={stats.events}
+                  championMap={championMap}
+                />
+              ) : (
+                <div className="text-slate-600 text-xs text-center py-4 italic">
+                  Esperando eventos...
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lol-vod-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./backend/.env
+    restart: always
