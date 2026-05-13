@@ -12,9 +12,10 @@ interface PlayerPanelProps {
 export const PlayerPanel = ({ players }: PlayerPanelProps) => {
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
-  const togglePlayer = (id: string) => {
-    // Si haces clic en el mismo, se cierra. Si es otro, se abre el nuevo.
-    setExpandedPlayerId(expandedPlayerId === id ? null : id);
+  const togglePlayer = (id: string | number) => {
+    // FIX 1: Forzamos el ID a String para evitar que 1 === "1" devuelva falso
+    const safeId = String(id);
+    setExpandedPlayerId(expandedPlayerId === safeId ? null : safeId);
   };
 
   if (!players || players.length !== 10) return null;
@@ -31,25 +32,30 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
       }`}
     >
       <h3
-        className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 ${isBlue ? "text-blue-400" : "text-red-400"}`}
+        className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 ${
+          isBlue ? "text-blue-400" : "text-red-400"
+        }`}
       >
         {isBlue ? "✦ Equipo Azul" : "✦ Equipo Rojo"}
       </h3>
       <div className="flex justify-between gap-2">
         {team.map((player) => {
-          const isExpanded = expandedPlayerId === player.id;
+          const safeId = String(player.id);
+          const isExpanded = expandedPlayerId === safeId;
+
           return (
             <div
-              key={player.id}
-              className="relative flex flex-col items-center"
+              key={safeId}
+              // FIX 2: Elevamos el z-index del contenedor padre SOLO cuando está activo
+              className={`relative flex flex-col items-center ${isExpanded ? "z-[50]" : "z-10"}`}
             >
               {/* Avatar del Campeón */}
               <button
                 onClick={(e) => {
-                  e.stopPropagation(); // Evita que el clic llegue al backdrop
-                  togglePlayer(player.id);
+                  e.stopPropagation();
+                  togglePlayer(safeId);
                 }}
-                className={`relative w-12 h-12 rounded-full p-0.5 transition-all duration-300 z-50 ${
+                className={`relative w-12 h-12 rounded-full p-0.5 transition-all duration-300 ${
                   isExpanded
                     ? isBlue
                       ? "bg-blue-500 scale-110 shadow-[0_0_15px_rgba(59,130,246,0.5)]"
@@ -66,9 +72,11 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
 
               {/* Detalle Expandible */}
               <div
-                className={`absolute top-16 w-56 z-[60] transition-all duration-300 ease-out origin-top backdrop-blur-xl bg-slate-900/95 border border-slate-700/50 rounded-xl shadow-2xl ${
+                // FIX 3: Centramos con left-1/2 -translate-x-1/2 para que no se salga de la pantalla
+                // Y añadimos pointer-events-auto para asegurar interacción
+                className={`absolute top-16 left-1/2 -translate-x-1/2 w-56 transition-all duration-300 ease-out origin-top backdrop-blur-xl bg-slate-900/95 border border-slate-700/50 rounded-xl shadow-2xl ${
                   isExpanded
-                    ? "scale-100 opacity-100 translate-y-0"
+                    ? "scale-100 opacity-100 translate-y-0 pointer-events-auto"
                     : "scale-90 opacity-0 -translate-y-4 pointer-events-none"
                 }`}
               >
@@ -76,19 +84,20 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h4 className="text-xs font-bold text-white leading-none mb-1">
-                        {player.name}
+                        {player.name || "Jugador"}
                       </h4>
                       <p className="text-[10px] text-blue-400 font-mono uppercase tracking-tighter">
                         {player.champion}
                       </p>
                     </div>
                     <span className="text-[10px] font-black bg-black/40 px-2 py-1 rounded border border-white/5 text-slate-300">
-                      {player.kda}
+                      {player.kda || "0/0/0"}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-6 gap-1 mt-3 pt-3 border-t border-white/5">
-                    {player.items.map((item, index) => (
+                    {/* FIX 4: Fallback de seguridad por si items es undefined momentáneamente */}
+                    {(player.items || []).map((item, index) => (
                       <img
                         key={index}
                         src={getItemImageUrlById(item)}
@@ -111,15 +120,16 @@ export const PlayerPanel = ({ players }: PlayerPanelProps) => {
 
   return (
     <div className="relative w-full mt-4">
-      {/* BACKDROP: Si hay algo expandido, esta capa invisible captura el clic fuera para cerrar */}
+      {/* BACKDROP: Le agregué un leve fondo negro (bg-black/10) para confirmar que se activa */}
       {expandedPlayerId && (
         <div
-          className="fixed inset-0 z-[40] cursor-default"
+          className="fixed inset-0 z-[40] cursor-default bg-black/10"
           onClick={() => setExpandedPlayerId(null)}
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* FIX 5: Capa de grid por encima del backdrop */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-[45]">
         {renderTeam(blueTeam, true)}
         {renderTeam(redTeam, false)}
       </div>
