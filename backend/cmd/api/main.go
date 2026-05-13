@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -128,6 +129,121 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "success",
 			"message": "VOD y telemetría procesados e indexados correctamente",
+		})
+	})
+
+	// NUEVA RUTA: Buscar últimos Match IDs por Riot ID (Nombre#Tag)
+	mux.HandleFunc("GET /api/search-matches", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		gameName := r.URL.Query().Get("name")
+		tagLine := r.URL.Query().Get("tag")
+		region := r.URL.Query().Get("region")
+
+		if gameName == "" || tagLine == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Faltan name o tag"})
+			return
+		}
+
+		apiKey := os.Getenv("RIOT_API_KEY") // Asegúrate de que esta variable exista
+		client := &http.Client{}
+
+		// 1. Obtener PUUID desde Account-V1 (Americas)
+		accountURL := fmt.Sprintf("https://%s.api.riotgames.com/riot/account/v1/accounts/by-riot-id/%s/%s", region, gameName, tagLine)
+		reqAcc, _ := http.NewRequest("GET", accountURL, nil)
+		reqAcc.Header.Set("X-Riot-Token", apiKey)
+
+		respAcc, err := client.Do(reqAcc)
+		if err != nil || respAcc.StatusCode != 200 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Jugador no encontrado en Riot Games"})
+			return
+		}
+		defer respAcc.Body.Close()
+
+		var accountData struct {
+			Puuid string `json:"puuid"`
+		}
+		json.NewDecoder(respAcc.Body).Decode(&accountData)
+
+		// 2. Obtener los últimos 5 Match IDs usando el PUUID
+		matchesURL := fmt.Sprintf("https://%s.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?start=0&count=5", region, accountData.Puuid)
+		reqMatch, _ := http.NewRequest("GET", matchesURL, nil)
+		reqMatch.Header.Set("X-Riot-Token", apiKey)
+
+		respMatch, err := client.Do(reqMatch)
+		if err != nil || respMatch.StatusCode != 200 {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Error obteniendo el historial de partidas"})
+			return
+		}
+
+		var matchIDs []string
+		json.NewDecoder(respMatch.Body).Decode(&matchIDs)
+		respMatch.Body.Close()
+
+		// NUEVO: 3. Estructura para el resumen de la partida
+		type MatchSummary struct {
+			MatchID  string `json:"matchId"`
+			Champion string `json:"champion"`
+			Kills    int    `json:"kills"`
+			Deaths   int    `json:"deaths"`
+			Assists  int    `json:"assists"`
+			Win      bool   `json:"win"`
+			GameMode string `json:"gameMode"`
+		}
+
+		var summaries []MatchSummary
+
+		// NUEVO: 4. Consultar los detalles de cada partida y extraer los datos del jugador
+		for _, matchID := range matchIDs {
+			detailURL := fmt.Sprintf("https://americas.api.riotgames.com/lol/match/v5/matches/%s", matchID)
+			reqDetail, _ := http.NewRequest("GET", detailURL, nil)
+			reqDetail.Header.Set("X-Riot-Token", apiKey)
+
+			respDetail, err := client.Do(reqDetail)
+			if err != nil || respDetail.StatusCode != 200 {
+				continue // Si una partida falla, la saltamos para no romper el ciclo
+			}
+
+			var matchData struct {
+				Info struct {
+					GameMode     string `json:"gameMode"`
+					Participants []struct {
+						Puuid        string `json:"puuid"`
+						ChampionName string `json:"championName"`
+						Kills        int    `json:"kills"`
+						Deaths       int    `json:"deaths"`
+						Assists      int    `json:"assists"`
+						Win          bool   `json:"win"`
+					} `json:"participants"`
+				} `json:"info"`
+			}
+
+			json.NewDecoder(respDetail.Body).Decode(&matchData)
+			respDetail.Body.Close()
+
+			// Buscamos cuál de los 10 jugadores es el que estamos buscando
+			for _, p := range matchData.Info.Participants {
+				if p.Puuid == accountData.Puuid {
+					summaries = append(summaries, MatchSummary{
+						MatchID:  matchID,
+						Champion: p.ChampionName,
+						Kills:    p.Kills,
+						Deaths:   p.Deaths,
+						Assists:  p.Assists,
+						Win:      p.Win,
+						GameMode: matchData.Info.GameMode,
+					})
+					break
+				}
+			}
+		}
+
+		// Devolvemos la lista de resúmenes estructurados al frontend
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"matches": summaries,
 		})
 	})
 

@@ -21,35 +21,43 @@ export function DashboardView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [regionFilter, setRegionFilter] = useState("all");
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!user) return;
-      setLoading(true);
+  // EXTRAÍDO: Lógica de consulta a Supabase
+  const fetchMatches = async () => {
+    if (!user) return;
+    setLoading(true);
 
-      const { data: globalMatches, error: globalError } = await supabase
-        .from("matches_data")
-        .select("match_id, title, region")
-        .order("created_at", { ascending: false });
+    const { data: globalMatches, error: globalError } = await supabase
+      .from("matches_data")
+      .select("match_id, title, region")
+      .order("created_at", { ascending: false });
 
-      const { data: savedMatches, error: savedError } = await supabase
-        .from("user_saved_matches")
-        .select("match_id")
-        .eq("user_id", user.id);
+    const { data: savedMatches, error: savedError } = await supabase
+      .from("user_saved_matches")
+      .select("match_id")
+      .eq("user_id", user.id);
 
-      if (!globalError && globalMatches) {
-        setAllMatches(globalMatches);
-      }
-
-      if (!savedError && savedMatches) {
-        const ids = new Set(savedMatches.map((m) => m.match_id));
-        setSavedMatchIds(ids);
-      }
-
-      setLoading(false);
+    if (!globalError && globalMatches) {
+      setAllMatches(globalMatches);
     }
 
-    fetchData();
+    if (!savedError && savedMatches) {
+      const ids = new Set(savedMatches.map((m) => m.match_id));
+      setSavedMatchIds(ids);
+    }
+
+    setLoading(false);
+  };
+
+  // Se ejecuta al montar el componente
+  useEffect(() => {
+    fetchMatches();
   }, [user]);
+
+  // NUEVO: Se ejecuta cuando AddVodForm termina con éxito
+  const handleVodAdded = () => {
+    fetchMatches(); // Recarga los datos silenciosamente
+    setActiveTab("all"); // Cambia la pestaña para mostrar el nuevo VOD
+  };
 
   // Filtro combinado (Pestaña + Búsqueda + Región)
   const displayedMatches = allMatches.filter((match) => {
@@ -137,7 +145,7 @@ export function DashboardView() {
 
       {/* RENDERIZADO CONDICIONAL: Muestra formulario o grilla dependiendo de la pestaña */}
       {activeTab === "add" ? (
-        <AddVodForm />
+        <AddVodForm onSuccess={handleVodAdded} />
       ) : loading ? (
         <div className="text-slate-500 font-mono animate-pulse">
           Sincronizando base de datos...
