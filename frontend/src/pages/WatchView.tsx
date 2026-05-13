@@ -26,7 +26,6 @@ export function WatchView() {
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
   const [matchPlayers, setMatchPlayers] = useState<PlayerData[]>([]);
 
-  // 1. ACUMULADOR DE TELEMETRÍA (Para procesar lo que manda Go)
   const [liveTelemetry, setLiveTelemetry] = useState<
     Record<string, { kda: string; items: string[] }>
   >({});
@@ -35,17 +34,18 @@ export function WatchView() {
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
   );
 
-  // 2. MOTOR DE EVENT SOURCING: Calcula KDA e Items desde los eventos del WS
+  // MOTOR DE EVENT SOURCING CORREGIDO (Tipado Estricto)
   useEffect(() => {
     if (stats?.events && Array.isArray(stats.events)) {
-      const currentStats: Record<string, { k; d; a; items: string[] }> = {};
+      const currentStats: Record<
+        string,
+        { k: number; d: number; a: number; items: string[] }
+      > = {};
 
-      // Inicializamos a los 10
       for (let i = 1; i <= 10; i++) {
         currentStats[String(i)] = { k: 0, d: 0, a: 0, items: [] };
       }
 
-      // Procesamos la lista de eventos que manda tu backend en Go
       stats.events.forEach((ev: any) => {
         const pId = String(ev.participantId || ev.killerId);
         const vId = String(ev.victimId);
@@ -72,7 +72,6 @@ export function WatchView() {
         }
       });
 
-      // Formateamos para el componente visual
       const formatted: Record<string, { kda: string; items: string[] }> = {};
       Object.keys(currentStats).forEach((id) => {
         const p = currentStats[id];
@@ -89,7 +88,7 @@ export function WatchView() {
   useEffect(() => {
     async function fetchMatchData() {
       setLoading(true);
-      const { data: matchData, error: matchError } = await supabase
+      const { data: matchData } = await supabase
         .from("matches_data")
         .select("vod_url, start_time_offset, match_info")
         .eq("match_id", matchId)
@@ -116,7 +115,7 @@ export function WatchView() {
                   p.summonerName ||
                   `Jugador ${p.participantId}`,
                 champion: p.championName,
-                kda: "0/0/0", // Base estática
+                kda: "0/0/0",
                 items: [],
               };
             },
@@ -125,29 +124,58 @@ export function WatchView() {
           setMatchPlayers(list);
         }
       }
+
+      if (user && matchId) {
+        const { data: saved } = await supabase
+          .from("user_saved_matches")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("match_id", matchId)
+          .maybeSingle();
+        if (saved) setIsSaved(true);
+      }
       setLoading(false);
     }
     fetchMatchData();
-  }, [matchId]);
+  }, [matchId, user]);
 
   const toggleSaveMatch = async () => {
-    /* ... misma lógica anterior ... */
+    if (!user || !matchId) return;
+    setIsSaving(true);
+    try {
+      if (isSaved) {
+        await supabase
+          .from("user_saved_matches")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("match_id", matchId);
+        setIsSaved(false);
+      } else {
+        await supabase
+          .from("user_saved_matches")
+          .insert([{ user_id: user.id, match_id: matchId }]);
+        setIsSaved(true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (loading)
     return (
-      <div className="p-10 text-center animate-pulse text-slate-500 font-mono">
-        Consultando base de datos...
+      <div className="p-10 text-center animate-pulse text-slate-500 font-mono text-xs uppercase tracking-[0.3em]">
+        Inicializando telemetría...
       </div>
     );
   if (!videoConfig)
     return (
-      <div className="p-10 text-center text-red-400">
-        Partida no encontrada.
+      <div className="p-10 text-center text-red-400 font-bold uppercase tracking-widest">
+        Error: Registro de VOD no encontrado
       </div>
     );
 
-  // 3. FUSIÓN: Si el WS tiene data nueva de eventos, la priorizamos sobre el 0/0/0 de Supabase
   const displayPlayers = matchPlayers.map((p) => ({
     ...p,
     kda: liveTelemetry[p.id]?.kda || p.kda,
@@ -162,9 +190,14 @@ export function WatchView() {
         </h1>
         <button
           onClick={toggleSaveMatch}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest"
+          disabled={isSaving}
+          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
         >
-          {isSaved ? "Quitar de Guardados" : "⭐ Guardar VOD"}
+          {isSaving
+            ? "Sincronizando..."
+            : isSaved
+              ? "Quitar de Guardados"
+              : "⭐ Guardar VOD"}
         </button>
       </div>
 
@@ -185,7 +218,6 @@ export function WatchView() {
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-4 px-2">
               Estadísticas Finales de la Partida
             </h2>
-            {/* USAMOS LA DATA FUSIONADA AQUÍ */}
             {displayPlayers.length > 0 && (
               <FinalScoreboardPanel players={displayPlayers} />
             )}
