@@ -160,7 +160,15 @@ export function WatchView() {
           </div>
 
           {/* Panel de Jugadores con datos en tiempo real del WebSocket */}
-          {stats?.players && <PlayerPanel players={stats.players} />}
+          {matchPlayers.length > 0 && (
+            <PlayerPanel
+              players={
+                stats?.players && stats.players.length === 10
+                  ? stats.players
+                  : matchPlayers
+              }
+            />
+          )}
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />
         </div>
