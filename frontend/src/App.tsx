@@ -37,7 +37,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-slate-200 font-sans selection:bg-blue-500/30">
-      <Toaster theme="dark" roundness={8} fill="#161b22" />
+      <Toaster theme="dark" options={{ roundness: 8, fill: "#161b22" }} />
       <header className="sticky top-0 z-50 w-full border-b border-slate-800 bg-[#0d1117]/80 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">

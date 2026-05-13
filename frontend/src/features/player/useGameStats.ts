@@ -39,7 +39,7 @@ export const useGameStats = (wsUrl: string) => {
       });
     });
 
-    wsClientRef.current.onError((err: string) => {
+    wsClientRef.current.onError(() => {
       sileo.error({ title: "¡SE PERDIÓ LA CONEXIÓN CON EL SERVIDOR!" });
     });
 
