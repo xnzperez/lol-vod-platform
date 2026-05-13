@@ -1,13 +1,22 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
-import { WatchView } from "./pages/WatchView";
-import { AuthView } from "./pages/AuthView";
-import { DashboardView } from "./pages/DashboardView";
 import { useAuth } from "./core/AuthContext";
 import { supabase } from "./core/supabaseClient";
 import type { ReactNode } from "react";
 import { Toaster } from "sileo";
 
-// NUEVO: HOC para interceptar rutas que requieren autenticación
+// CARGA DIFERIDA (Lazy Loading): El navegador no bajará este código hasta visitar la ruta
+const AuthView = lazy(() =>
+  import("./pages/AuthView").then((m) => ({ default: m.AuthView })),
+);
+const DashboardView = lazy(() =>
+  import("./pages/DashboardView").then((m) => ({ default: m.DashboardView })),
+);
+const WatchView = lazy(() =>
+  import("./pages/WatchView").then((m) => ({ default: m.WatchView })),
+);
+
+// HOC para interceptar rutas que requieren autenticación
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
 
@@ -26,6 +35,13 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return children;
 }
 
+// Pantalla de carga Hextech para el Suspense
+const LoadingScreen = () => (
+  <div className="flex-1 flex items-center justify-center p-20">
+    <div className="w-10 h-10 border-4 border-slate-800 border-t-[#00A3FF] rounded-full animate-spin"></div>
+  </div>
+);
+
 export default function App() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +52,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-slate-200 font-sans selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#0d1117] text-slate-200 font-sans selection:bg-blue-500/30 flex flex-col">
       <Toaster theme="dark" options={{ roundness: 8, fill: "#161b22" }} />
       <header className="sticky top-0 z-50 w-full border-b border-slate-800 bg-[#0d1117]/80 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-6">
@@ -72,32 +88,31 @@ export default function App() {
         </div>
       </header>
 
-      <Routes>
-        {/* NUEVO: Rutas envueltas en el protector de sesión */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <DashboardView />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/watch/:matchId"
-          element={
-            <ProtectedRoute>
-              <WatchView />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Si un usuario ya logueado intenta ir a /auth, lo devolvemos al Dashboard */}
-        <Route
-          path="/auth"
-          element={user ? <Navigate to="/" replace /> : <AuthView />}
-        />
-      </Routes>
+      {/* SUSPENSE: Envuelve las rutas para mostrar el LoadingScreen mientras se descarga el chunk de Vite */}
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <DashboardView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/watch/:matchId"
+            element={
+              <ProtectedRoute>
+                <WatchView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/auth"
+            element={user ? <Navigate to="/" replace /> : <AuthView />}
+          />
+        </Routes>
+      </Suspense>
     </div>
   );
 }
