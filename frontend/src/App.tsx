@@ -1,3 +1,4 @@
+import React from "react";
 import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
 import { WatchView } from "./pages/WatchView";
 import { AuthView } from "./pages/AuthView";

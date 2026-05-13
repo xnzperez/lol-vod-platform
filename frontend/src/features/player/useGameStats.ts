@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { VODWebSocketClient } from "../../core/websocket";
-// Importamos sileo para cuando restauremos los eventos individuales
-import { sileo } from "sileo";
 
 // NUEVO CONTRATO: Refleja el struct ProcessedFrame de Go
 export interface MatchFrameData {
@@ -10,6 +8,7 @@ export interface MatchFrameData {
   redTeamGold: number;
   goldDifference: number;
   winProbability: number; // Viene en formato decimal (0.0 a 1.0)
+  events?: any[] | null;
 }
 
 export const useGameStats = (wsUrl: string) => {

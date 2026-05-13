@@ -1,11 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
-// CORRECCIÓN: Agregamos la palabra clave 'type' para Session y User
+import { createContext, useContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabaseClient";
 
