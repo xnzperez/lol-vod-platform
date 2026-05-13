@@ -28,9 +28,6 @@ export function WatchView() {
   const [championMap, setChampionMap] = useState<Record<number, string>>({});
   const [matchPlayers, setMatchPlayers] = useState<PlayerData[]>([]);
 
-  // NUEVO: Estado para controlar el spoiler del marcador
-  const [showScoreboard, setShowScoreboard] = useState(false);
-
   const { stats, updateServerTime } = useGameStats(
     `${import.meta.env.VITE_WS_URL}/ws/stats?match_id=${matchId}`,
   );
