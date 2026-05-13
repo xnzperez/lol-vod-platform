@@ -1,6 +1,6 @@
 // Definimos la versión actual de la API de Data Dragon
 // (En producción, esto se obtendría dinámicamente, pero para el VOD usaremos una versión fija)
-const D_DRAGON_VERSION = "14.6.1";
+const D_DRAGON_VERSION = "14.9.1";
 const BASE_URL = `https://ddragon.leagueoflegends.com/cdn/${D_DRAGON_VERSION}/img`;
 
 // 1. DICCIONARIO DE OBJETOS (Mapper O(1))
