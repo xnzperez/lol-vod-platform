@@ -14,6 +14,7 @@ export function FinalScoreboardPanel({ players }: FinalScoreboardProps) {
   const blueTeam = players.slice(0, 5);
   const redTeam = players.slice(5, 10);
 
+  // Mantenemos el array para asegurar las 5 posiciones de los roles
   const roles = ["TOP", "JGL", "MID", "ADC", "SUP"];
 
   return (
@@ -26,7 +27,8 @@ export function FinalScoreboardPanel({ players }: FinalScoreboardProps) {
       </div>
 
       <div className="flex flex-col">
-        {roles.map((role, idx) => {
+        {/* Cambiamos 'role' por '_' para evitar el error TS6133 */}
+        {roles.map((_, idx) => {
           const bluePlayer = blueTeam[idx];
           const redPlayer = redTeam[idx];
 
