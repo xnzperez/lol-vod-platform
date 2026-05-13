@@ -189,9 +189,8 @@ export function WatchView() {
             />
           </div>
 
-          {/* Panel de Jugadores renderizado limpiamente bajo el video */}
-          {matchPlayers.length === 10 && <PlayerPanel players={matchPlayers} />}
-
+          {/* Panel de Jugadores con datos en tiempo real del WebSocket */}
+          {stats?.players && <PlayerPanel players={stats.players} />}
           <MatchTimeline currentStats={stats} />
           <MatchEventLog currentStats={stats} championMap={championMap} />
         </div>

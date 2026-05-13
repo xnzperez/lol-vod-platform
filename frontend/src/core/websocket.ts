@@ -1,7 +1,6 @@
 import { sileo } from "sileo";
 import type { MatchFrameData } from "../features/player/useGameStats";
 
-// Usamos la nueva interfaz que coincide con Go
 type OnStatsUpdateCallback = (stats: MatchFrameData) => void;
 
 export class VODWebSocketClient {
@@ -27,10 +26,32 @@ export class VODWebSocketClient {
 
     this.ws.onmessage = (event: MessageEvent) => {
       try {
-        // 1. Parseamos el JSON directo de Supabase/Go, SIN el decoder viejo
-        const cleanStats = JSON.parse(event.data) as MatchFrameData;
+        const rawData = JSON.parse(event.data);
 
-        // 2. Notificamos a React inmediatamente
+        // Mapeo Defensivo: Rescatamos los jugadores si vienen comprimidos (p_d) o planos
+        const mappedPlayers = rawData.players
+          ? rawData.players
+          : rawData.p_d
+            ? rawData.p_d.map((p: any) => ({
+                id: p.id || p.participantId?.toString(),
+                name: p.n || p.name || `Jugador`,
+                champion: p.c || p.champion || "",
+                kda: p.kda || "0/0/0",
+                items: p.i || p.items || [],
+              }))
+            : undefined;
+
+        // Construimos el contrato estricto
+        const cleanStats: MatchFrameData = {
+          minute: rawData.minute || rawData.t || 0,
+          blueTeamGold: rawData.blueTeamGold || 0,
+          redTeamGold: rawData.redTeamGold || 0,
+          goldDifference: rawData.goldDifference || rawData.g_d || 0,
+          winProbability: rawData.winProbability || rawData.w_p || 50,
+          events: rawData.events || null,
+          players: mappedPlayers,
+        };
+
         if (this.onUpdate) {
           this.onUpdate(cleanStats);
         }
