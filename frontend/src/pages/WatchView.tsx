@@ -163,9 +163,7 @@ export function WatchView() {
           {matchPlayers.length > 0 && (
             <PlayerPanel
               players={
-                stats?.players && stats.players.length === 10
-                  ? stats.players
-                  : matchPlayers
+                stats?.players?.length === 10 ? stats.players : matchPlayers
               }
             />
           )}
