@@ -7,8 +7,9 @@ export interface MatchFrameData {
   blueTeamGold: number;
   redTeamGold: number;
   goldDifference: number;
-  winProbability: number; // Viene en formato decimal (0.0 a 1.0)
-  events?: any[] | null;
+  winProbability: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  events: any[] | null;
 }
 
 export const useGameStats = (wsUrl: string) => {

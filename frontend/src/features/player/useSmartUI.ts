@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 export const useSmartUI = (isPlaying: boolean) => {
   const [isUIVisible, setIsUIVisible] = useState(true);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Función central: Muestra la UI y reinicia el cronómetro de inactividad

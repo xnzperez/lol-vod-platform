@@ -1,13 +1,13 @@
-import React from "react";
 import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
 import { WatchView } from "./pages/WatchView";
 import { AuthView } from "./pages/AuthView";
 import { DashboardView } from "./pages/DashboardView";
 import { useAuth } from "./core/AuthContext";
 import { supabase } from "./core/supabaseClient";
+import type { ReactNode } from "react";
 
 // NUEVO: HOC para interceptar rutas que requieren autenticación
-function ProtectedRoute({ children }: { children: JSX.Element }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
