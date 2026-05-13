@@ -28,18 +28,24 @@ export class VODWebSocketClient {
       try {
         const rawData = JSON.parse(event.data);
 
-        // Mapeo Defensivo: Rescatamos los jugadores si vienen comprimidos (p_d) o planos
-        const mappedPlayers = rawData.players
-          ? rawData.players
-          : rawData.p_d
-            ? rawData.p_d.map((p: any) => ({
-                id: p.id || p.participantId?.toString(),
-                name: p.n || p.name || `Jugador`,
-                champion: p.c || p.champion || "",
-                kda: p.kda || "0/0/0",
-                items: p.i || p.items || [],
-              }))
-            : undefined;
+        // Mapeo Estricto: Casteo explícito a String en el ID para no romper el acumulador
+        let mappedPlayers = undefined;
+
+        if (rawData.players && Array.isArray(rawData.players)) {
+          mappedPlayers = rawData.players;
+        } else if (rawData.p_d && Array.isArray(rawData.p_d)) {
+          mappedPlayers = rawData.p_d.map((p: any) => ({
+            id: p.id
+              ? String(p.id)
+              : p.participantId
+                ? String(p.participantId)
+                : "",
+            name: p.n || p.name || "Jugador",
+            champion: p.c || p.champion || "",
+            kda: p.kda || "0/0/0",
+            items: p.i || p.items || [],
+          }));
+        }
 
         // Construimos el contrato estricto
         const cleanStats: MatchFrameData = {
